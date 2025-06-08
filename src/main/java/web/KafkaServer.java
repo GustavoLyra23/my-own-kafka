@@ -1,4 +1,3 @@
-
 package web;
 
 import core.models.KafkaRequest;
@@ -23,7 +22,7 @@ public class KafkaServer {
     private static final int MAX_API_VERSION = 4;
     private final int port;
     private ServerSocket serverSocket;
-    private static final int SOCKET_TIMEOUT = 1000; // 1 second timeout between requests
+    private static final int SOCKET_TIMEOUT = 1000;
 
     public KafkaServer(int port) {
         this.port = port;
@@ -67,7 +66,6 @@ public class KafkaServer {
 
     private void handleClientConnection(Socket clientSocket) {
         try (clientSocket) {
-            // Set socket timeout for reading between requests
             clientSocket.setSoTimeout(SOCKET_TIMEOUT);
 
             InputStream inputStream = clientSocket.getInputStream();
@@ -77,8 +75,14 @@ public class KafkaServer {
 
             while (!clientSocket.isClosed() && clientSocket.isConnected()) {
                 try {
+                    LOGGER.info("Waiting for request " + (requestCount + 1) + " from client: " + formatClientAddress(clientSocket));
+
                     KafkaRequest request = readRequest(inputStream);
                     requestCount++;
+
+                    LOGGER.info("Received request " + requestCount + " - API Key: " + request.apiKey() +
+                            ", API Version: " + request.apiVersion() +
+                            ", Correlation ID: " + request.correlationId());
 
                     ResponseDTO response = createResponse(request);
                     sendResponse(outputStream, response);
@@ -86,7 +90,6 @@ public class KafkaServer {
                     LOGGER.info("Request " + requestCount + " processed successfully for correlation ID: " + request.correlationId());
 
                 } catch (SocketTimeoutException e) {
-                    // Timeout between requests - client may have finished
                     if (requestCount > 0) {
                         LOGGER.info("Client finished sending requests (processed " + requestCount + " requests): " + formatClientAddress(clientSocket));
                     } else {
@@ -95,8 +98,7 @@ public class KafkaServer {
                     break;
 
                 } catch (IOException e) {
-                    // Client disconnected or stream closed
-                    LOGGER.info("Client disconnected after " + requestCount + " requests: " + formatClientAddress(clientSocket));
+                    LOGGER.info("Client disconnected after " + requestCount + " requests: " + formatClientAddress(clientSocket) + " - " + e.getMessage());
                     break;
                 }
             }
@@ -110,20 +112,17 @@ public class KafkaServer {
     }
 
     private KafkaRequest readRequest(InputStream inputStream) throws IOException {
-        // Read message size first
         int msgSize = readMsgRequest(inputStream);
+        LOGGER.info("Read message size: " + msgSize);
 
-        // Then read API key, API version, and correlation ID in correct order
         short apiKey = readApiKey(inputStream);
         short apiVersion = readApiVersion(inputStream);
         int correlationId = readCorrelationId(inputStream);
 
-        // Skip the rest of the request data for now (client ID, etc.)
-        // Calculate remaining bytes to skip: msgSize - (2 + 2 + 4) = msgSize - 8
         int remainingBytes = msgSize - 8;
         if (remainingBytes > 0) {
             long skipped = inputStream.skip(remainingBytes);
-            LOGGER.fine("Skipped " + skipped + " bytes of remaining request data");
+            LOGGER.info("Skipped " + skipped + " bytes of remaining request data");
         }
 
         return new KafkaRequest(msgSize, apiKey, apiVersion, correlationId);
@@ -131,14 +130,24 @@ public class KafkaServer {
 
     private ResponseDTO createResponse(KafkaRequest request) {
         short errorCode = validateApiVersion(request.apiVersion());
+        LOGGER.info("Creating response with error code: " + errorCode);
         return new ResponseDTO(request.correlationId(), errorCode);
     }
 
     private void sendResponse(OutputStream outputStream, ResponseDTO response) throws IOException {
         byte[] responseBytes = response.toByteBuffer().array();
+
+        LOGGER.info("Sending response: " + responseBytes.length + " bytes");
+        StringBuilder hexLog = new StringBuilder("Response bytes (first 16): ");
+        for (int i = 0; i < Math.min(16, responseBytes.length); i++) {
+            hexLog.append(String.format("%02x ", responseBytes[i]));
+        }
+        LOGGER.info(hexLog.toString());
+
         outputStream.write(responseBytes);
         outputStream.flush();
-        LOGGER.fine("Response sent, " + responseBytes.length + " bytes");
+
+        LOGGER.info("Response sent and flushed successfully");
     }
 
     private short validateApiVersion(short apiVersion) {
