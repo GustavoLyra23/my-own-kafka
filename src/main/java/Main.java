@@ -67,6 +67,7 @@ public class Main {
             response.putShort((short) 4);  // max version
 
             // Tagged fields for this API version entry (empty)
+
             response.put((byte) 0);
 
             // Throttle time (required in v3+)
