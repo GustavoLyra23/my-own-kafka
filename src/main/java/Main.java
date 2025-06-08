@@ -2,9 +2,11 @@ import models.Header;
 import models.ProtocolMsg;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 
 public class Main {
     public static void main(String[] args) {
@@ -15,12 +17,17 @@ public class Main {
             serverSocket = new ServerSocket(port);
             serverSocket.setReuseAddress(true);
             clientSocket = serverSocket.accept();
-            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(),
-                    true);
-            var protocolMsg = new ProtocolMsg(0, new Header(7));
-            var stringRes = "messageSize: " + protocolMsg.getMessageSize() + System.lineSeparator();
-            stringRes += "correlation_id: " + protocolMsg.getHeader().correlationId();
-            out.println(stringRes);
+            var inputStream = clientSocket.getInputStream();
+            byte[] messageSizeBytes = new byte[4];
+            inputStream.read(messageSizeBytes);
+            int messageSize = ByteBuffer.wrap(messageSizeBytes).getInt();
+            byte[] correlationIdBytes = new byte[4];
+            inputStream.read(correlationIdBytes);
+            int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
+            System.err.println("Message Size: " + messageSize);
+            System.err.println("Correlation ID: " + correlationId);
+            String response = "messageSize: " + messageSize + System.lineSeparator();
+            clientSocket.getOutputStream().write(response.getBytes());
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         } finally {
