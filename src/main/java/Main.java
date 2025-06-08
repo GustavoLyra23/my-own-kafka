@@ -1,15 +1,11 @@
-import enums.ERROR;
 import models.Body;
 import models.Header;
 import models.ProtocolMsg;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
 import static enums.ERROR.UNSUPPORTED_VERSION;
-import static enums.REQUEST_DATA.*;
 import static web.Server.closeClientConnection;
 import static web.Server.startTCPServer;
 import static web.readers.RequestReaderUtil.*;
