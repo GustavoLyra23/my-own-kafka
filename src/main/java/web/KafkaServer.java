@@ -45,7 +45,7 @@ public class KafkaServer {
         while (true) {
             try {
                 Socket clientSocket = acceptClientConnection();
-                executeTask(this::handleClientRequest, clientSocket);
+                executeTask(this::handleClientConnection, clientSocket);
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error handling client request", e);
             }
@@ -62,14 +62,23 @@ public class KafkaServer {
         return socket.getInetAddress() + ":" + socket.getPort();
     }
 
-    private void handleClientRequest(Socket clientSocket) {
+    private void handleClientConnection(Socket clientSocket) {
         try (clientSocket) {
-            KafkaRequest request = readRequest(clientSocket.getInputStream());
-            ResponseDTO response = createResponse(request);
-            sendResponse(clientSocket.getOutputStream(), response);
-            LOGGER.info("Request processed successfully for correlation ID: " + request.correlationId());
+            InputStream inputStream = clientSocket.getInputStream();
+            OutputStream outputStream = clientSocket.getOutputStream();
+            while (!clientSocket.isClosed() && clientSocket.isConnected()) {
+                try {
+                    KafkaRequest request = readRequest(inputStream);
+                    ResponseDTO response = createResponse(request);
+                    sendResponse(outputStream, response);
+                    LOGGER.info("Request processed successfully for correlation ID: " + request.correlationId());
+                } catch (IOException e) {
+                    LOGGER.info("Client disconnected: " + formatClientAddress(clientSocket));
+                    break;
+                }
+            }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error processing client request", e);
+            LOGGER.log(Level.WARNING, "Error processing client connection", e);
         }
     }
 
@@ -79,14 +88,18 @@ public class KafkaServer {
 
     private KafkaRequest readRequest(InputStream inputStream) throws IOException {
         int msgSize = readMsgRequest(inputStream);
+
         short apiKey = readApiKey(inputStream);
         short apiVersion = readApiVersion(inputStream);
         int correlationId = readCorrelationId(inputStream);
+
         int remainingBytes = msgSize - 8;
-        if (remainingBytes > 0) inputStream.skip(remainingBytes);
+        if (remainingBytes > 0) {
+            inputStream.skip(remainingBytes);
+        }
+
         return new KafkaRequest(msgSize, apiKey, apiVersion, correlationId);
     }
-
 
     private ResponseDTO createResponse(KafkaRequest request) {
         short errorCode = validateApiVersion(request.apiVersion());
