@@ -20,6 +20,8 @@ public class ResponseDTO {
         this.errorCode = errorCode;
         this.throttleTime = 0;
         apiVersions.add(new ApiVersion(18, 0, 4));
+        //DescribeTopicPartitions api key.
+        apiVersions.add(new ApiVersion(75, 0, 0));
     }
 
     public ByteBuffer toByteBuffer() {
