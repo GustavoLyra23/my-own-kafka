@@ -25,7 +25,7 @@ public class Main {
             inputStream.read(correlationIdBytes);
             int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
             System.err.println("Message Size: " + messageSize);
-            System.err.println("Correlation ID: " + correlationId);
+            System.err.println("Correlation ID: " + 7);
             String response = "messageSize: " + messageSize + System.lineSeparator();
             clientSocket.getOutputStream().write(response.getBytes());
         } catch (IOException e) {
