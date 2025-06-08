@@ -1,22 +1,26 @@
+import models.Header;
+import models.ProtocolMsg;
+
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
 public class Main {
     public static void main(String[] args) {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
-        System.err.println("Logs from your program will appear here!");
-
         ServerSocket serverSocket;
         Socket clientSocket = null;
         int port = 9092;
         try {
             serverSocket = new ServerSocket(port);
-            // Since the tester restarts your program quite often, setting SO_REUSEADDR
-            // ensures that we don't run into 'Address already in use' errors
             serverSocket.setReuseAddress(true);
-            // Wait for connection from client.
             clientSocket = serverSocket.accept();
+            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(),
+                    true);
+            var protocolMsg = new ProtocolMsg(0, new Header(7));
+            var stringRes = "messageSize: " + protocolMsg.getMessageSize() + System.lineSeparator();
+            stringRes += "correlation_id: " + protocolMsg.getHeader().correlationId();
+            out.println(stringRes);
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         } finally {
