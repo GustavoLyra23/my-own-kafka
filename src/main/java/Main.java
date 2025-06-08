@@ -3,12 +3,10 @@ import models.ProtocolMsg;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
-import static enums.REQUEST_DATA.MSG_SIZE;
+import static enums.REQUEST_DATA.*;
 import static web.Server.closeClientConnection;
 import static web.Server.startTCPServer;
 import static web.readers.RequestReaderUtil.*;
@@ -20,25 +18,31 @@ public class Main {
             int port = 9092;
             clientSocket = startTCPServer(port);
             System.out.println("Server started on port " + port);
+
             var inputStream = clientSocket.getInputStream();
             var out = clientSocket.getOutputStream();
 
-//            readApiKey(inputStream);
-//            readApiVersion(inputStream);
-            out.write(readMsgRequest(inputStream).byteValue() + readCorrelationId(inputStream).byteValue());
+            // Lê message size (4 bytes)
+            int messageSize = readMsgRequest(inputStream);
 
+            // Lê api key (2 bytes)
+            short apiKey = readApiKey(inputStream);
 
-            //            var inputStream = clientSocket.getInputStream();
-//            byte[] messageSizeBytes = new byte[4];
-//            inputStream.read(messageSizeBytes);
-//            int messageSize = ByteBuffer.wrap(messageSizeBytes).getInt();
-//            byte[] correlationIdBytes = new byte[4];
-//            inputStream.read(correlationIdBytes);
-//            int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
-//            System.err.println("Message Size: " + messageSize);
-//            System.err.println("Correlation ID: " + new byte[]{0, 0, 0, 0, 0,});
-//            String response = "messageSize: " + messageSize + System.lineSeparator();
-//            clientSocket.getOutputStream().write(new byte[]{0, 0, 0, 0, 0, 0, 0, 7});
+            // Lê api version (2 bytes)
+            short apiVersion = readApiVersion(inputStream);
+
+            // Lê correlation id (4 bytes)
+            int correlationId = readCorrelationId(inputStream);
+
+            System.err.println("Message Size: " + messageSize);
+            System.err.println("API Key: " + apiKey);
+            System.err.println("API Version: " + apiVersion);
+            System.err.println("Correlation ID: " + correlationId);
+
+            ByteBuffer response = ByteBuffer.allocate(8);
+            response.putInt(0);
+            response.putInt(correlationId);
+            out.write(response.array());
         } catch (Exception e) {
             System.out.println("Exception: " + e.getMessage());
         } finally {

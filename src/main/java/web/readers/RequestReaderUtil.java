@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 import static enums.REQUEST_DATA.*;
 
 /*
-    * This utility class provides methods to read various request components from an InputStream.l
+ * This utility class provides methods to read various request components from an InputStream.l
  */
 public class RequestReaderUtil {
 
@@ -27,15 +27,15 @@ public class RequestReaderUtil {
         return ByteBuffer.wrap(correlationIdBuffer).getInt();
     }
 
-    public static Integer readApiKey(InputStream inputStream) throws IOException {
+    public static short readApiKey(InputStream inputStream) throws IOException {
         byte[] apiKeyBuffer = new byte[REQUEST_API_KEY_SIZE.getSize()];
         inputStream.read(apiKeyBuffer);
-        return ByteBuffer.wrap(apiKeyBuffer).getInt();
+        return ByteBuffer.wrap(apiKeyBuffer).getShort();
     }
 
-    public static Integer readApiVersion(InputStream inputStream) throws IOException {
+    public static short readApiVersion(InputStream inputStream) throws IOException {
         byte[] apiVersionBuffer = new byte[REQUEST_API_VERSION_SIZE.getSize()];
         inputStream.read(apiVersionBuffer);
-        return ByteBuffer.wrap(apiVersionBuffer).getInt();
+        return ByteBuffer.wrap(apiVersionBuffer).getShort();
     }
 }
