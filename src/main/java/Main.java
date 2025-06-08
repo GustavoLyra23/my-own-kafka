@@ -31,18 +31,21 @@ public class Main {
                 errorCode = UNSUPPORTED_VERSION.getCode();
             }
 
-            // APIVersions response structure:
+            // APIVersions v3+ response format with tagged fields:
             // Message Length (4 bytes)
             // Correlation ID (4 bytes)
             // Error Code (2 bytes)
-            // Array Length (4 bytes) - number of API versions
+            // API Versions Array Length as compact array (variable bytes)
             // For each API version:
             //   - API Key (2 bytes)
             //   - Min Version (2 bytes)
             //   - Max Version (2 bytes)
+            //   - Tagged Fields (1 byte = 0 for empty)
+            // Throttle Time (4 bytes)
+            // Tagged Fields (1 byte = 0 for empty)
 
-            // Response body size calculation
-            int responseBodySize = 4 + 2 + 4 + 6; // correlation_id + error_code + array_length + one_api_entry
+            // Calculate response body size
+            int responseBodySize = 4 + 2 + 1 + 6 + 1 + 4 + 1; // correlation_id + error_code + compact_array_length + api_version_entry + tagged_fields + throttle_time + tagged_fields
 
             ByteBuffer response = ByteBuffer.allocate(4 + responseBodySize);
 
@@ -55,13 +58,22 @@ public class Main {
             // Write error code
             response.putShort(errorCode);
 
-            // Write array length (1 entry)
-            response.putInt(1);
+            // Write API versions array length (compact format: length + 1)
+            response.put((byte) 2); // 1 entry + 1 = 2
 
             // Write API version entry for API_VERSIONS (key 18)
             response.putShort((short) 18); // API key for API_VERSIONS
             response.putShort((short) 0);  // min version
             response.putShort((short) 4);  // max version
+
+            // Tagged fields for this API version entry (empty)
+            response.put((byte) 0);
+
+            // Throttle time (required in v3+)
+            response.putInt(0);
+
+            // Tagged fields for response body (empty)
+            response.put((byte) 0);
 
             out.write(response.array());
             out.flush();
