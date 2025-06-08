@@ -37,6 +37,7 @@ public class KafkaServer {
 
     private void initializeServer() throws IOException {
         this.serverSocket = new ServerSocket(port);
+        serverSocket.setReuseAddress(true);
         LOGGER.info("Kafka server started on port " + port);
     }
 

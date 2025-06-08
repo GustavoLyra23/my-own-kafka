@@ -44,7 +44,7 @@ public class ResponseDTO {
 
 
     private int calculateBodySize() {
-        return 4 + 2 + 2 + (apiVersions.size() * 7) + 4 + 1;
+        return 4 + 2 + 1 + (apiVersions.size() * 7) + 4 + 1;
     }
 }
 
