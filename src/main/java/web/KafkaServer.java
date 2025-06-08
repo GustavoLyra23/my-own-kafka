@@ -1,3 +1,4 @@
+
 package web;
 
 import core.models.KafkaRequest;
@@ -8,6 +9,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -21,6 +23,7 @@ public class KafkaServer {
     private static final int MAX_API_VERSION = 4;
     private final int port;
     private ServerSocket serverSocket;
+    private static final int TIMEOUT = 5000;
 
     public KafkaServer(int port) {
         this.port = port;
@@ -64,6 +67,7 @@ public class KafkaServer {
 
     private void handleClientConnection(Socket clientSocket) {
         try (clientSocket) {
+            clientSocket.setSoTimeout(TIMEOUT);
             InputStream inputStream = clientSocket.getInputStream();
             OutputStream outputStream = clientSocket.getOutputStream();
             while (!clientSocket.isClosed() && clientSocket.isConnected()) {
@@ -72,6 +76,9 @@ public class KafkaServer {
                     ResponseDTO response = createResponse(request);
                     sendResponse(outputStream, response);
                     LOGGER.info("Request processed successfully for correlation ID: " + request.correlationId());
+                } catch (SocketTimeoutException e) {
+                    LOGGER.info("No more data from client (timeout): " + formatClientAddress(clientSocket));
+                    break;
                 } catch (IOException e) {
                     LOGGER.info("Client disconnected: " + formatClientAddress(clientSocket));
                     break;
@@ -87,12 +94,16 @@ public class KafkaServer {
     }
 
     private KafkaRequest readRequest(InputStream inputStream) throws IOException {
+        // Read message size first
         int msgSize = readMsgRequest(inputStream);
 
+        // Then read API key, API version, and correlation ID in correct order
         short apiKey = readApiKey(inputStream);
         short apiVersion = readApiVersion(inputStream);
         int correlationId = readCorrelationId(inputStream);
 
+        // Skip the rest of the request data for now (client ID, etc.)
+        // Calculate remaining bytes to skip: msgSize - (2 + 2 + 4) = msgSize - 8
         int remainingBytes = msgSize - 8;
         if (remainingBytes > 0) {
             inputStream.skip(remainingBytes);
