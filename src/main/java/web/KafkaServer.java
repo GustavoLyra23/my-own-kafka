@@ -23,7 +23,7 @@ public class KafkaServer {
     private static final int MAX_API_VERSION = 4;
     private final int port;
     private ServerSocket serverSocket;
-    private static final int TIMEOUT = 5000;
+    private static final int SOCKET_TIMEOUT = 1000; // 1 second timeout between requests
 
     public KafkaServer(int port) {
         this.port = port;
@@ -67,20 +67,36 @@ public class KafkaServer {
 
     private void handleClientConnection(Socket clientSocket) {
         try (clientSocket) {
-            clientSocket.setSoTimeout(TIMEOUT);
+            // Set socket timeout for reading between requests
+            clientSocket.setSoTimeout(SOCKET_TIMEOUT);
+
             InputStream inputStream = clientSocket.getInputStream();
             OutputStream outputStream = clientSocket.getOutputStream();
+
+            int requestCount = 0;
+
             while (!clientSocket.isClosed() && clientSocket.isConnected()) {
                 try {
                     KafkaRequest request = readRequest(inputStream);
+                    requestCount++;
+
                     ResponseDTO response = createResponse(request);
                     sendResponse(outputStream, response);
-                    LOGGER.info("Request processed successfully for correlation ID: " + request.correlationId());
+
+                    LOGGER.info("Request " + requestCount + " processed successfully for correlation ID: " + request.correlationId());
+
                 } catch (SocketTimeoutException e) {
-                    LOGGER.info("No more data from client (timeout): " + formatClientAddress(clientSocket));
+                    // Timeout between requests - client may have finished
+                    if (requestCount > 0) {
+                        LOGGER.info("Client finished sending requests (processed " + requestCount + " requests): " + formatClientAddress(clientSocket));
+                    } else {
+                        LOGGER.info("No data received from client (timeout): " + formatClientAddress(clientSocket));
+                    }
                     break;
+
                 } catch (IOException e) {
-                    LOGGER.info("Client disconnected: " + formatClientAddress(clientSocket));
+                    // Client disconnected or stream closed
+                    LOGGER.info("Client disconnected after " + requestCount + " requests: " + formatClientAddress(clientSocket));
                     break;
                 }
             }
@@ -106,7 +122,8 @@ public class KafkaServer {
         // Calculate remaining bytes to skip: msgSize - (2 + 2 + 4) = msgSize - 8
         int remainingBytes = msgSize - 8;
         if (remainingBytes > 0) {
-            inputStream.skip(remainingBytes);
+            long skipped = inputStream.skip(remainingBytes);
+            LOGGER.fine("Skipped " + skipped + " bytes of remaining request data");
         }
 
         return new KafkaRequest(msgSize, apiKey, apiVersion, correlationId);
@@ -121,6 +138,7 @@ public class KafkaServer {
         byte[] responseBytes = response.toByteBuffer().array();
         outputStream.write(responseBytes);
         outputStream.flush();
+        LOGGER.fine("Response sent, " + responseBytes.length + " bytes");
     }
 
     private short validateApiVersion(short apiVersion) {
