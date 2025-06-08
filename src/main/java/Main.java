@@ -24,16 +24,19 @@ public class Main {
 
             var inputStream = clientSocket.getInputStream();
             var out = clientSocket.getOutputStream();
+            int msgSize = readMsgRequest(inputStream);
             // Lê api key (2 bytes)
             short apiKey = readApiKey(inputStream);
             // Lê api version (2 bytes)
             short apiVersion = readApiVersion(inputStream);
+            int correlationId = readCorrelationId(inputStream);
+
             short errorCode = 0;
             if (apiVersion < 0 || apiVersion > 4) errorCode
                     = UNSUPPORTED_VERSION.getCode();
             var protocolMsg = ProtocolMsg.builder()
-                    .messageSize(readMsgRequest(inputStream))
-                    .header(new Header(readCorrelationId(inputStream)))
+                    .messageSize(msgSize)
+                    .header(new Header(correlationId))
                     .body(new Body(apiKey, apiVersion))
                     .build();
             ByteBuffer response = ByteBuffer.allocate(8);
