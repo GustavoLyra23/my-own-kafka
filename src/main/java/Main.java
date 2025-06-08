@@ -8,36 +8,41 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
+import static enums.REQUEST_DATA.MSG_SIZE;
+import static web.Server.closeClientConnection;
+import static web.Server.startTCPServer;
+import static web.readers.RequestReaderUtil.*;
+
 public class Main {
     public static void main(String[] args) {
-        ServerSocket serverSocket;
         Socket clientSocket = null;
-        int port = 9092;
         try {
-            serverSocket = new ServerSocket(port);
-            serverSocket.setReuseAddress(true);
-            clientSocket = serverSocket.accept();
+            int port = 9092;
+            clientSocket = startTCPServer(port);
+            System.out.println("Server started on port " + port);
             var inputStream = clientSocket.getInputStream();
-            byte[] messageSizeBytes = new byte[4];
-            inputStream.read(messageSizeBytes);
-            int messageSize = ByteBuffer.wrap(messageSizeBytes).getInt();
-            byte[] correlationIdBytes = new byte[4];
-            inputStream.read(correlationIdBytes);
-            int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
-            System.err.println("Message Size: " + messageSize);
-            System.err.println("Correlation ID: " + new byte[]{0,0,0,0,0,});
-            String response = "messageSize: " + messageSize + System.lineSeparator();
-            clientSocket.getOutputStream().write(new byte[] {0, 0, 0, 0, 0, 0, 0, 7});
-        } catch (IOException e) {
-            System.out.println("IOException: " + e.getMessage());
+            var out = clientSocket.getOutputStream();
+
+//            readApiKey(inputStream);
+//            readApiVersion(inputStream);
+            out.write(readMsgRequest(inputStream).byteValue() + readCorrelationId(inputStream).byteValue());
+
+
+            //            var inputStream = clientSocket.getInputStream();
+//            byte[] messageSizeBytes = new byte[4];
+//            inputStream.read(messageSizeBytes);
+//            int messageSize = ByteBuffer.wrap(messageSizeBytes).getInt();
+//            byte[] correlationIdBytes = new byte[4];
+//            inputStream.read(correlationIdBytes);
+//            int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
+//            System.err.println("Message Size: " + messageSize);
+//            System.err.println("Correlation ID: " + new byte[]{0, 0, 0, 0, 0,});
+//            String response = "messageSize: " + messageSize + System.lineSeparator();
+//            clientSocket.getOutputStream().write(new byte[]{0, 0, 0, 0, 0, 0, 0, 7});
+        } catch (Exception e) {
+            System.out.println("Exception: " + e.getMessage());
         } finally {
-            try {
-                if (clientSocket != null) {
-                    clientSocket.close();
-                }
-            } catch (IOException e) {
-                System.out.println("IOException: " + e.getMessage());
-            }
+            closeClientConnection(clientSocket);
         }
     }
 }
