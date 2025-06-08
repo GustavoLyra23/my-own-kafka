@@ -39,7 +39,7 @@ public class Main {
                     .header(new Header(correlationId))
                     .body(new Body(apiKey, apiVersion))
                     .build();
-            ByteBuffer response = ByteBuffer.allocate(8);
+            ByteBuffer response = ByteBuffer.allocate(10);
             response.putInt(0);
             response.putInt(protocolMsg.getHeader().correlationId());
             response.putShort(errorCode);
