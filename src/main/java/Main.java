@@ -1,3 +1,5 @@
+import enums.ERROR;
+import models.Body;
 import models.Header;
 import models.ProtocolMsg;
 
@@ -6,6 +8,7 @@ import java.io.InputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
+import static enums.ERROR.UNSUPPORTED_VERSION;
 import static enums.REQUEST_DATA.*;
 import static web.Server.closeClientConnection;
 import static web.Server.startTCPServer;
@@ -21,27 +24,22 @@ public class Main {
 
             var inputStream = clientSocket.getInputStream();
             var out = clientSocket.getOutputStream();
-
-            // Lê message size (4 bytes)
-            int messageSize = readMsgRequest(inputStream);
-
             // Lê api key (2 bytes)
             short apiKey = readApiKey(inputStream);
-
             // Lê api version (2 bytes)
             short apiVersion = readApiVersion(inputStream);
-
-            // Lê correlation id (4 bytes)
-            int correlationId = readCorrelationId(inputStream);
-
-            System.err.println("Message Size: " + messageSize);
-            System.err.println("API Key: " + apiKey);
-            System.err.println("API Version: " + apiVersion);
-            System.err.println("Correlation ID: " + correlationId);
-
+            short errorCode = 0;
+            if (apiVersion < 0 || apiVersion > 4) errorCode
+                    = UNSUPPORTED_VERSION.getCode();
+            var protocolMsg = ProtocolMsg.builder()
+                    .messageSize(readMsgRequest(inputStream))
+                    .header(new Header(readCorrelationId(inputStream)))
+                    .body(new Body(apiKey, apiVersion))
+                    .build();
             ByteBuffer response = ByteBuffer.allocate(8);
             response.putInt(0);
-            response.putInt(correlationId);
+            response.putInt(protocolMsg.getHeader().correlationId());
+            response.putShort(errorCode);
             out.write(response.array());
         } catch (Exception e) {
             System.out.println("Exception: " + e.getMessage());

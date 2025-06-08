@@ -1,31 +1,19 @@
 package models;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@NoArgsConstructor
+@Builder
+@AllArgsConstructor
+@Data
 public class ProtocolMsg {
 
     private Integer messageSize;
     private Header header;
-    //    private Object body;
-
-    public ProtocolMsg(Integer messageSize, Header header) {
-        this.messageSize = messageSize;
-        this.header = header;
-    }
-
-    public Integer getMessageSize() {
-        return messageSize;
-    }
-
-    public void setMessageSize(Integer messageSize) {
-        this.messageSize = messageSize;
-    }
-
-    public Header getHeader() {
-        return header;
-    }
-
-    public void setHeader(Header header) {
-        this.header = header;
-    }
+    private Body body;
 }
 
 
