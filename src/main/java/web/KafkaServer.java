@@ -78,13 +78,15 @@ public class KafkaServer {
     }
 
     private KafkaRequest readRequest(InputStream inputStream) throws IOException {
-        //TODO: fix msgSize && apiKey...
         int msgSize = readMsgRequest(inputStream);
         short apiKey = readApiKey(inputStream);
         short apiVersion = readApiVersion(inputStream);
         int correlationId = readCorrelationId(inputStream);
+        int remainingBytes = msgSize - 8;
+        if (remainingBytes > 0) inputStream.skip(remainingBytes);
         return new KafkaRequest(msgSize, apiKey, apiVersion, correlationId);
     }
+
 
     private ResponseDTO createResponse(KafkaRequest request) {
         short errorCode = validateApiVersion(request.apiVersion());
