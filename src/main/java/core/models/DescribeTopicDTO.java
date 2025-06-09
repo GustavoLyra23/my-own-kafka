@@ -5,36 +5,55 @@ import enums.TOPIC_OPERATIONS;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * Data Transfer Object (DTO) for describing a topic in a messaging system.
  * This class encapsulates the topic's ID, name, and authorized operations.
  */
-public class DescribeTopicDTO extends AbstractResponseDTO implements IBufferByteDTO {
+public class DescribeTopicDTO implements IBufferByteDTO {
 
-    private final String topicId = "00000000-0000-0000-0000-000000000000";
-    private final String topicName;
-    private List<TOPIC_OPERATIONS> topicAuthorizedOperations = new ArrayList<>();
+    private static final Logger LOGGER = Logger.getLogger(DescribeTopicDTO.class.getName());
+    private final int correlationId;
+    private final List<TopicResponseDTO> topicList = new ArrayList<>();
 
-    protected DescribeTopicDTO(int correlationId, short errorCode, String topicName) {
-        super(correlationId, errorCode);
-        this.topicName = topicName;
+
+    public DescribeTopicDTO(int correlationId) {
+        this.correlationId = correlationId;
     }
 
-    public String getTopicId() {
-        return topicId;
+    public void addTopicResponse(TopicResponseDTO topicResponse) {
+        topicList.add(topicResponse);
     }
 
-    public void addTopicOperation(TOPIC_OPERATIONS operation) {
-        if (!topicAuthorizedOperations.contains(operation)) topicAuthorizedOperations.add(operation);
-    }
-
-    public String getTopicName() {
-        return topicName;
+    private int calculateBodySize() {
+        int size = 4 + 1 + 4 + 1 + (topicList.size() * 29) + 1 + 1;
+        LOGGER.fine("Calculated body size: " + size);
+        return size;
     }
 
     @Override
     public ByteBuffer toByteBuffer() {
-        return null;
+        int bodySize = calculateBodySize();
+        LOGGER.fine("Creating DescribeTopicDTO buffer with body size: " + bodySize);
+        var buff = ByteBuffer.allocate(4 + bodySize);
+        buff.putInt(bodySize);
+        buff.putInt(correlationId);
+        buff.put((byte) 0);
+        buff.put(new byte[4]);
+        buff.put((byte) (topicList.size() + 1));
+        for (TopicResponseDTO topic : topicList) {
+            buff.putShort(topic.getErrorCode());
+            buff.put(topic.getTopicLength());
+            buff.put(topic.getTopicName());
+            buff.put(topic.getTopicId());
+            buff.put(topic.getIsInternal());
+            buff.put((byte) 1);
+            buff.put(new byte[4]);
+            buff.put((byte) 0);
+        }
+        buff.put((byte) 0);
+        buff.put((byte) 0);
+        return buff;
     }
 }
