@@ -7,21 +7,19 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class ResponseDTO {
-    private static final Logger LOGGER = Logger.getLogger(ResponseDTO.class.getName());
+import static enums.API_KEYS.API_VERSIONS;
+import static enums.API_KEYS.DESCRIBE_TOPIC_PARTITION;
 
-    private final int correlationId;
-    private final short errorCode;
+public class ApiVersionResponseDTO extends AbstractResponseDTO {
+    private static final Logger LOGGER = Logger.getLogger(ApiVersionResponseDTO.class.getName());
+
     private final List<ApiVersion> apiVersions = new ArrayList<>();
-    private final int throttleTime;
 
-    public ResponseDTO(int correlationId, short errorCode) {
-        this.correlationId = correlationId;
-        this.errorCode = errorCode;
-        this.throttleTime = 0;
-        apiVersions.add(new ApiVersion(18, 0, 4));
+    public ApiVersionResponseDTO(int correlationId, short errorCode) {
+        super(correlationId, errorCode);
+        apiVersions.add(new ApiVersion(API_VERSIONS.getApiKey(), 0, 4));
         //DescribeTopicPartitions api key.
-        apiVersions.add(new ApiVersion(75, 0, 0));
+        apiVersions.add(new ApiVersion(DESCRIBE_TOPIC_PARTITION.getApiKey(), 0, 0));
     }
 
     public ByteBuffer toByteBuffer() {

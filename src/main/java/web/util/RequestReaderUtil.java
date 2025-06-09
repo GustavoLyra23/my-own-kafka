@@ -10,6 +10,7 @@ import static enums.REQUEST_DATA.*;
  * This utility class provides methods to read various request components from an InputStream.l
  */
 public class RequestReaderUtil {
+    private static final int SKIP_MSG_SIZE = 4;
 
     private RequestReaderUtil() throws IllegalAccessException {
         throw new IllegalAccessException("Utility class cannot be instantiated");
@@ -27,7 +28,9 @@ public class RequestReaderUtil {
         return ByteBuffer.wrap(correlationIdBuffer).getInt();
     }
 
-    public static short readApiKey(InputStream inputStream) throws IOException {
+    // Reads the API key from the input stream...
+    public static short readApiKey(InputStream inputStream, boolean skip) throws IOException {
+        if (skip) inputStream.skip(SKIP_MSG_SIZE);
         byte[] apiKeyBuffer = new byte[REQUEST_API_KEY_SIZE.getSize()];
         inputStream.read(apiKeyBuffer);
         return ByteBuffer.wrap(apiKeyBuffer).getShort();
