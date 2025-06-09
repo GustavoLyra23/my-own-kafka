@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 import static enums.API_KEYS.API_VERSIONS;
 import static enums.API_KEYS.DESCRIBE_TOPIC_PARTITION;
 
-public class ApiVersionResponseDTO extends AbstractResponseDTO {
+public class ApiVersionResponseDTO extends AbstractResponseDTO implements IBufferByteDTO {
     private static final Logger LOGGER = Logger.getLogger(ApiVersionResponseDTO.class.getName());
 
     private final List<ApiVersion> apiVersions = new ArrayList<>();
@@ -22,6 +22,7 @@ public class ApiVersionResponseDTO extends AbstractResponseDTO {
         apiVersions.add(new ApiVersion(DESCRIBE_TOPIC_PARTITION.getApiKey(), 0, 0));
     }
 
+    @Override
     public ByteBuffer toByteBuffer() {
         try {
             var buff = createBuffer();
@@ -30,7 +31,7 @@ public class ApiVersionResponseDTO extends AbstractResponseDTO {
 
         } catch (BufferOverflowException e) {
             LOGGER.log(Level.SEVERE, "Buffer overflow when creating response", e);
-            return createBuffer();
+            return ByteBuffer.allocate(0); // Return an empty buffer on error
         }
     }
 

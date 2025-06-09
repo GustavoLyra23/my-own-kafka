@@ -41,4 +41,41 @@ public class RequestReaderUtil {
         inputStream.read(apiVersionBuffer);
         return ByteBuffer.wrap(apiVersionBuffer).getShort();
     }
+
+    public static short readClientIdLenght(InputStream inputStream) throws IOException {
+        byte[] clientIdLengthBuff = new byte[CLIENTID_LENGTH.getSize()];
+        inputStream.read(clientIdLengthBuff);
+        return ByteBuffer.wrap(clientIdLengthBuff).getShort();
+    }
+
+    public static byte[] readClientIdContents(InputStream inputStream) throws IOException {
+        byte[] clientIdContents = new byte[CLIENTID_CONTENTS.getSize()];
+        inputStream.read(clientIdContents);
+        return clientIdContents;
+    }
+
+    public static byte readTopicArrayLength(InputStream inputStream) throws IOException {
+        byte[] topicArrayLengthBuff = new byte[TOPIC_ARRAY_LENGTH.getSize()];
+        inputStream.read(topicArrayLengthBuff);
+        return ByteBuffer.wrap(topicArrayLengthBuff).get();
+    }
+
+
+    public static byte readTopicNameLength(InputStream inputStream) throws IOException {
+        byte[] topicNameLengthBuff = new byte[TOPIC_NAME_LENGTH.getSize()];
+        inputStream.read(topicNameLengthBuff);
+        return ByteBuffer.wrap(topicNameLengthBuff).get();
+    }
+
+    public static byte[] readTopicName(InputStream inputStream) throws IOException {
+        byte[] topicNameBuff = new byte[TOPIC_NAME_SIZE.getSize()];
+        inputStream.read(topicNameBuff);
+        return topicNameBuff;
+    }
+
+    public static int readDescribeTopicPartitionLimit(InputStream inputStream) throws IOException {
+        byte[] responsePartitionLimitBuff = new byte[RESPONSE_PARTITION_LIMIT_SIZE.getSize()];
+        inputStream.read(responsePartitionLimitBuff);
+        return ByteBuffer.wrap(responsePartitionLimitBuff).getInt();
+    }
 }

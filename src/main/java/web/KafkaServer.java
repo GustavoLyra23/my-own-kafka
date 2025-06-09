@@ -1,7 +1,6 @@
 package web;
 
-import core.models.KafkaRequest;
-import core.models.ApiVersionResponseDTO;
+import core.models.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,6 +8,7 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -90,13 +90,13 @@ public class KafkaServer {
                 try {
                     LOGGER.info("Waiting for request " + (requestCount + 1) + " from client: " + formatClientAddress(clientSocket));
 
-                    KafkaRequest request = readRequest(inputStream);
+                    KafkaRequest request = readApiVersionRequest(inputStream);
                     requestCount++;
 
                     LOGGER.info("Received request " + requestCount + " - API Key: " + request.apiKey() +
                             ", API Version: " + request.apiVersion() +
                             ", Correlation ID: " + request.correlationId());
-                    ApiVersionResponseDTO response = createResponse(request);
+                    ApiVersionResponseDTO response = createApiVersionResponse(request);
                     sendResponse(outputStream, response);
                     LOGGER.info("Request " + requestCount + " processed successfully for correlation ID: " + request.correlationId());
                 } catch (SocketTimeoutException e) {
@@ -121,14 +121,34 @@ public class KafkaServer {
         return apiVersion >= MIN_API_VERSION && apiVersion <= MAX_API_VERSION;
     }
 
-    private KafkaRequest readDescribeTopicPartitionRequest(InputStream inputStream) throws IOException {
+    private DescribeTopicRequest readDescribeTopicPartitionRequest(InputStream inputStream) throws IOException {
         int msgSize = readMsgRequest(inputStream);
+        var apiKey = readApiKey(inputStream, false);
+        var apiVersion = readApiVersion(inputStream);
+        var correlationId = readCorrelationId(inputStream);
+        var clientIdLength = readClientIdLenght(inputStream);
+        var clientIdContents = readClientIdContents(inputStream);
+        //reading topics array..
+        var readArrayLength = readTopicArrayLength(inputStream);
+        var topics = new ArrayList<TopicInfo>();
+
+        for (int i = 0; i < readArrayLength; i++) {
+            var topicLength = readTopicNameLength(inputStream);
+            var topicName = readTopicName(inputStream);
+            topics.add(new TopicInfo(topicLength, topicName));
+            //skipping tag buffer...
+            inputStream.skip(1);
+            LOGGER.info("Read topic name: " + new String(topicName));
+        }
+
+        var responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
         LOGGER.info("Read message size: " + msgSize);
-        return null;
+        return new DescribeTopicRequest(msgSize, apiKey, apiVersion, correlationId, clientIdLength, clientIdContents, readArrayLength, topics, responsePartitionLimit);
+
     }
 
 
-    private KafkaRequest readRequest(InputStream inputStream) throws IOException {
+    private KafkaRequest readApiVersionRequest(InputStream inputStream) throws IOException {
         int msgSize = readMsgRequest(inputStream);
         LOGGER.info("Read message size: " + msgSize);
 
@@ -145,14 +165,14 @@ public class KafkaServer {
         return new KafkaRequest(msgSize, apiKey, apiVersion, correlationId);
     }
 
-    private ApiVersionResponseDTO createResponse(KafkaRequest request) {
+    private ApiVersionResponseDTO createApiVersionResponse(KafkaRequest request) {
         short errorCode = validateApiVersion(request.apiVersion());
         LOGGER.info("Creating response with error code: " + errorCode);
         return new ApiVersionResponseDTO(request.correlationId(), errorCode);
     }
 
-    private void sendResponse(OutputStream outputStream, ApiVersionResponseDTO response) throws IOException {
-        byte[] responseBytes = response.toByteBuffer().array();
+    private void sendResponse(OutputStream outputStream, IBufferByteDTO buffDTO) throws IOException {
+        byte[] responseBytes = buffDTO.toByteBuffer().array();
         LOGGER.info("Sending response: " + responseBytes.length + " bytes");
         StringBuilder hexLog = new StringBuilder("Response bytes (first 16): ");
         for (int i = 0; i < Math.min(16, responseBytes.length); i++) {
@@ -181,24 +201,31 @@ public class KafkaServer {
 
             while (!clientSocket.isClosed() && clientSocket.isConnected()) {
                 try {
+//                    LOGGER.info("Waiting for request " + (requestCount + 1) + " from client: " + formatClientAddress(clientSocket));
+//                    KafkaRequest request = readApiVersionRequest(inputStream);
+//                    requestCount++;
+//                    LOGGER.info("Received request " + requestCount + " - API Key: " + request.apiKey() +
+//                            ", API Version: " + request.apiVersion() +
+//                            ", Correlation ID: " + request.correlationId());
+//                    ApiVersionResponseDTO response = createResponse(request);
+//                    sendResponse(outputStream, response);
+//                    LOGGER.info("Request " + requestCount + " processed successfully for correlation ID: " + request.correlationId());
+//                } catch (SocketTimeoutException e) {
+//                    if (requestCount > 0) {
+//                        LOGGER.info("Client finished sending requests (processed " + requestCount + " requests): " + formatClientAddress(clientSocket));
+//                    } else {
+//                        LOGGER.info("No data received from client (timeout): " + formatClientAddress(clientSocket));
+//                    }
+//                    break;
                     LOGGER.info("Waiting for request " + (requestCount + 1) + " from client: " + formatClientAddress(clientSocket));
-                    KafkaRequest request = readRequest(inputStream);
+                    var request = readDescribeTopicPartitionRequest(inputStream);
                     requestCount++;
                     LOGGER.info("Received request " + requestCount + " - API Key: " + request.apiKey() +
                             ", API Version: " + request.apiVersion() +
                             ", Correlation ID: " + request.correlationId());
-                    ApiVersionResponseDTO response = createResponse(request);
-                    sendResponse(outputStream, response);
-                    LOGGER.info("Request " + requestCount + " processed successfully for correlation ID: " + request.correlationId());
-                } catch (SocketTimeoutException e) {
-                    if (requestCount > 0) {
-                        LOGGER.info("Client finished sending requests (processed " + requestCount + " requests): " + formatClientAddress(clientSocket));
-                    } else {
-                        LOGGER.info("No data received from client (timeout): " + formatClientAddress(clientSocket));
-                    }
-                    break;
 
-                } catch (IOException e) {
+
+                } catch (Exception e) {
                     LOGGER.info("Client disconnected after " + requestCount + " requests: " + formatClientAddress(clientSocket) + " - " + e.getMessage());
                     break;
                 }
