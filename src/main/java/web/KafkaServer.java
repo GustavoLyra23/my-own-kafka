@@ -1,6 +1,7 @@
 package web;
 
 import core.models.*;
+import enums.API_KEYS;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,7 +14,7 @@ import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static enums.API_KEYS.apiKeyFromInt;
+import static enums.API_KEYS.*;
 import static enums.ERROR.UNKNOWN_TOPIC_OR_PARTITION;
 import static enums.ERROR.UNSUPPORTED_VERSION;
 import static web.ThreadSocketPoolExecutor.executeParallelTask;
@@ -51,8 +52,8 @@ public class KafkaServer {
         while (true) {
             try {
                 Socket clientSocket = acceptClientConnection();
-                var apiKey = readApiKey(clientSocket.getInputStream(), true);
-                switch (apiKeyFromInt(apiKey)) {
+                InputStream inputStream = clientSocket.getInputStream();
+                switch (readApiKeyFromRequest(inputStream)) {
                     case API_VERSIONS:
                         LOGGER.info("Received ApiVersions request from client: " + formatClientAddress(clientSocket));
                         executeParallelTask(this::handleClientConnection, clientSocket);
@@ -62,7 +63,7 @@ public class KafkaServer {
                         executeParallelTask(this::handleDescribeTopicPartition, clientSocket);
                         break;
                     default:
-                        LOGGER.warning("Unsupported API Key: " + apiKey + " from client: ");
+                        LOGGER.warning("Unsupported API key from client: ");
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error handling client request", e);
@@ -282,5 +283,16 @@ public class KafkaServer {
                     UNKNOWN_TOPIC_OR_PARTITION.getCode(), topic.topicNameLength(),
                     topic.topicName(), (byte) 0));
         return describeTopic;
+    }
+
+    private API_KEYS readApiKeyFromRequest(InputStream inputStream) throws IOException {
+        LOGGER.info("Reading API Key...");
+        inputStream.mark(1000);
+        inputStream.skip(4);
+        byte[] apiKeyBytes = new byte[2];
+        inputStream.read(apiKeyBytes);
+        short apiKey = (short) ((apiKeyBytes[0] << 8) | (apiKeyBytes[1] & 0xFF));
+        inputStream.reset();
+        return API_KEYS.apiKeyFromInt(apiKey);
     }
 }

@@ -48,8 +48,6 @@ public class RequestReaderUtil {
         throw new IllegalAccessException("Utility class cannot be instantiated");
     }
 
-    // ===== SAFE READING PRIMITIVES =====
-
     /**
      * Reads exactly the specified number of bytes from the input stream.
      *
