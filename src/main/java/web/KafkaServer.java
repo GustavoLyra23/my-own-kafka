@@ -25,7 +25,7 @@ public class KafkaServer {
     private static final int MAX_API_VERSION = 4;
     private final int port;
     private ServerSocket serverSocket;
-    private static final int SOCKET_TIMEOUT = 60000; // 60 seconds
+    private static final int SOCKET_TIMEOUT = 10000; // 10 seconds...
 
     public KafkaServer(int port) {
         this.port = port;
@@ -125,6 +125,7 @@ public class KafkaServer {
     }
 
     private DescribeTopicRequest readDescribeTopicPartitionRequest(InputStream inputStream) throws IOException {
+        LOGGER.info("Reading DescribeTopicPartition request...");
         int msgSize = readMsgRequest(inputStream);
         var apiKey = readApiKey(inputStream, false);
         var apiVersion = readApiVersion(inputStream);
@@ -146,6 +147,7 @@ public class KafkaServer {
             String topicName = readCompactString(inputStream);
             LOGGER.info("Read topic name: " + topicName);
             inputStream.skip(1); // Skip topic tag buffer
+            if (topicName == null || topicName.isEmpty()) throw new IOException("Invalid topic name at index " + i);
 
             byte[] topicNameBytes = topicName.getBytes(StandardCharsets.UTF_8);
             topics.add(new TopicInfo((byte) topicNameBytes.length, topicNameBytes));
