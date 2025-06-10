@@ -17,7 +17,6 @@ public class DescribeTopicDTO implements IBufferByteDTO {
     private final int correlationId;
     private final List<TopicResponseDTO> topicList = new ArrayList<>();
 
-
     public DescribeTopicDTO(int correlationId) {
         this.correlationId = correlationId;
     }
@@ -30,6 +29,10 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         int size = 4 + 1 + 4 + 1 + (topicList.size() * 29) + 1 + 1;
         LOGGER.fine("Calculated body size: " + size);
         return size;
+    }
+
+    public void setData() {
+
     }
 
     @Override

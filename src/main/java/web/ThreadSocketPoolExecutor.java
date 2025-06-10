@@ -10,7 +10,7 @@ public class ThreadSocketPoolExecutor {
 
     private static final ExecutorService threadPoolExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
-    public static void executeTask(SocketExecutor socketExecutor, Socket clientSocket) {
+    public static void executeParallelTask(SocketExecutor socketExecutor, Socket clientSocket) {
         threadPoolExecutor.execute(() -> socketExecutor.processRequest(clientSocket));
     }
 }

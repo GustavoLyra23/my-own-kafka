@@ -9,14 +9,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static enums.API_KEYS.*;
 import static enums.ERROR.UNKNOWN_TOPIC_OR_PARTITION;
 import static enums.ERROR.UNSUPPORTED_VERSION;
-import static web.ThreadSocketPoolExecutor.executeTask;
+import static web.ThreadSocketPoolExecutor.executeParallelTask;
 import static web.util.RequestReaderUtil.*;
 
 public class KafkaServer {
@@ -56,11 +55,11 @@ public class KafkaServer {
                 switch (apiKeyFromInt(apiKey)) {
                     case API_VERSIONS:
                         LOGGER.info("Received ApiVersions request from client: " + formatClientAddress(clientSocket));
-                        executeTask(this::handleClientConnection, clientSocket);
+                        executeParallelTask(this::handleClientConnection, clientSocket);
                         break;
                     case DESCRIBE_TOPIC_PARTITION:
                         LOGGER.info("Received DescribeTopicPartitions request from client: " + formatClientAddress(clientSocket));
-                        executeTask(this::handleDescribeTopicPartition, clientSocket);
+                        executeParallelTask(this::handleDescribeTopicPartition, clientSocket);
                         break;
                     default:
                         LOGGER.warning("Unsupported API Key: " + apiKey + " from client: ");
