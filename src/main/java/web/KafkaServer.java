@@ -124,9 +124,7 @@ public class KafkaServer {
                 // Parse request header to determine the API type
                 int messageSize = readMsgRequest(inputStream);
                 short apiKey = readApiKey(inputStream, false);
-
                 dispatchRequest(clientSocket, messageSize, apiKey);
-
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error handling client request", e);
             }
@@ -150,8 +148,8 @@ public class KafkaServer {
      * Dispatches a request to the appropriate handler based on the API key.
      *
      * @param clientSocket the client socket for the connection
-     * @param messageSize the size of the message in bytes
-     * @param apiKey the API key indicating the request type
+     * @param messageSize  the size of the message in bytes
+     * @param apiKey       the API key indicating the request type
      */
     private void dispatchRequest(Socket clientSocket, int messageSize, short apiKey) {
         String clientAddress = formatClientAddress(clientSocket);
@@ -180,8 +178,8 @@ public class KafkaServer {
      * returning the supported API versions and their capabilities.</p>
      *
      * @param clientSocket the client socket
-     * @param messageSize the size of the first message
-     * @param apiKey the API key for the first request
+     * @param messageSize  the size of the first message
+     * @param apiKey       the API key for the first request
      */
     private void handleApiVersionsRequest(Socket clientSocket, int messageSize, short apiKey) {
         try (clientSocket) {
@@ -224,8 +222,8 @@ public class KafkaServer {
      * returning information about topic partitions, leaders, and replicas.</p>
      *
      * @param clientSocket the client socket
-     * @param messageSize the size of the first message
-     * @param apiKey the API key for the first request
+     * @param messageSize  the size of the first message
+     * @param apiKey       the API key for the first request
      */
     private void handleDescribeTopicPartitionsRequest(Socket clientSocket, int messageSize, short apiKey) {
         try (clientSocket) {
@@ -263,7 +261,7 @@ public class KafkaServer {
      *
      * @param inputStream the input stream to read from
      * @param messageSize the total message size
-     * @param apiKey the API key (already read)
+     * @param apiKey      the API key (already read)
      * @return the parsed KafkaRequest object
      * @throws IOException if parsing fails
      */
@@ -286,7 +284,7 @@ public class KafkaServer {
      *
      * @param inputStream the input stream to read from
      * @param messageSize the total message size
-     * @param apiKey the API key (already read)
+     * @param apiKey      the API key (already read)
      * @return the parsed DescribeTopicRequest object
      * @throws IOException if parsing fails
      */
@@ -360,7 +358,7 @@ public class KafkaServer {
      * Parses a single topic from the topics array.
      *
      * @param inputStream the input stream to read from
-     * @param topicIndex the index of this topic (for error reporting)
+     * @param topicIndex  the index of this topic (for error reporting)
      * @return TopicInfo object containing topic data
      * @throws IOException if parsing fails or topic name is invalid
      */
@@ -425,7 +423,7 @@ public class KafkaServer {
      * Sends a response to the client over the output stream.
      *
      * @param outputStream the output stream to write to
-     * @param response the response object to send
+     * @param response     the response object to send
      * @throws IOException if sending fails
      */
     private void sendResponse(OutputStream outputStream, IBufferByteDTO response) throws IOException {
@@ -487,9 +485,9 @@ public class KafkaServer {
      * where the underlying stream returns fewer bytes than requested.</p>
      *
      * @param inputStream the input stream to read from
-     * @param length the exact number of bytes to read
+     * @param length      the exact number of bytes to read
      * @return byte array containing the read data
-     * @throws IOException if EOF is encountered before all bytes are read
+     * @throws IOException              if EOF is encountered before all bytes are read
      * @throws IllegalArgumentException if length is negative
      */
     private byte[] readExactly(InputStream inputStream, int length) throws IOException {
@@ -539,7 +537,7 @@ public class KafkaServer {
      * Handles client timeout scenarios gracefully.
      *
      * @param clientAddress the client address for logging
-     * @param requestCount the number of requests processed before timeout
+     * @param requestCount  the number of requests processed before timeout
      */
     private void handleClientTimeout(String clientAddress, int requestCount) {
         if (requestCount > 0) {
@@ -553,8 +551,8 @@ public class KafkaServer {
      * Handles client disconnection scenarios.
      *
      * @param clientAddress the client address for logging
-     * @param requestCount the number of requests processed before disconnection
-     * @param cause the exception that caused the disconnection
+     * @param requestCount  the number of requests processed before disconnection
+     * @param cause         the exception that caused the disconnection
      */
     private void handleClientDisconnection(String clientAddress, int requestCount, Exception cause) {
         LOGGER.info("Client disconnected after " + requestCount + " requests: " + clientAddress + " - " + cause.getMessage());
