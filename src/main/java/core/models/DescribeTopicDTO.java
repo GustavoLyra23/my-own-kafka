@@ -1,7 +1,5 @@
 package core.models;
 
-import enums.TOPIC_OPERATIONS;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,10 +27,6 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         int size = 4 + 1 + 4 + 1 + (topicList.size() * 29) + 1 + 1;
         LOGGER.fine("Calculated body size: " + size);
         return size;
-    }
-
-    public void setData() {
-
     }
 
     @Override

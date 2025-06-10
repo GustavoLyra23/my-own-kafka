@@ -25,7 +25,7 @@ public class KafkaServer {
     private static final int MAX_API_VERSION = 4;
     private final int port;
     private ServerSocket serverSocket;
-    private static final int SOCKET_TIMEOUT = 1000;
+    private static final int SOCKET_TIMEOUT = 60000; // 60 seconds
 
     public KafkaServer(int port) {
         this.port = port;
