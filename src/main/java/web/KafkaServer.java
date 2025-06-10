@@ -8,13 +8,12 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static enums.API_KEYS.*;
+import static enums.API_KEYS.apiKeyFromInt;
 import static enums.ERROR.UNKNOWN_TOPIC_OR_PARTITION;
 import static enums.ERROR.UNSUPPORTED_VERSION;
 import static web.ThreadSocketPoolExecutor.executeParallelTask;
@@ -27,7 +26,6 @@ public class KafkaServer {
     private final int port;
     private ServerSocket serverSocket;
     private static final int SOCKET_TIMEOUT = 1000;
-//    private HashMap<String, ?> topicMap = new HashMap<>();
 
     public KafkaServer(int port) {
         this.port = port;
@@ -134,7 +132,7 @@ public class KafkaServer {
         var clientIdLength = readClientIdLenght(inputStream);
         var clientIdContents = readClientIdContents(inputStream);
 
-        inputStream.skip(1);
+        inputStream.skip(1); // Skip tag buffer
 
         int arrayLength = readVarint(inputStream);
         if (arrayLength == 0) {
@@ -147,21 +145,17 @@ public class KafkaServer {
         for (int i = 0; i < actualArrayLength; i++) {
             String topicName = readCompactString(inputStream);
             LOGGER.info("Read topic name: " + topicName);
-            inputStream.skip(1);
+            inputStream.skip(1); // Skip topic tag buffer
+
             byte[] topicNameBytes = topicName.getBytes(StandardCharsets.UTF_8);
             topics.add(new TopicInfo((byte) topicNameBytes.length, topicNameBytes));
         }
 
-        byte[] limitBytes = new byte[4];
-        inputStream.read(limitBytes);
-        int responsePartitionLimit = ByteBuffer.wrap(limitBytes).getInt();
+        int responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
+        byte[] cursor = readCompactBytes(inputStream);
+        LOGGER.info("Read cursor: " + (cursor != null ? cursor.length + " bytes" : "null"));
 
-        int cursorLength = readVarint(inputStream);
-        if (cursorLength > 0) {
-            inputStream.skip(cursorLength - 1);
-        }
-
-        inputStream.skip(1);
+        inputStream.skip(1); // Skip final tag buffer
 
         return new DescribeTopicRequest(msgSize, apiKey, apiVersion, correlationId,
                 clientIdLength, clientIdContents,

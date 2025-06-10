@@ -8,7 +8,7 @@ import java.util.List;
 public class TopicResponseDTO {
     private final byte[] topicId;
     //TODO: need to create an logic for topic operations...
-    private List<TOPIC_OPERATIONS> topicAuthorizedOperations = new ArrayList<>();
+    private final List<TOPIC_OPERATIONS> topicAuthorizedOperations = new ArrayList<>();
     private final short errorCode;
     private final byte topicLength;
     private final byte[] topicName;
