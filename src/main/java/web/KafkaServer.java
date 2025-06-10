@@ -8,6 +8,8 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -131,27 +133,40 @@ public class KafkaServer {
         var correlationId = readCorrelationId(inputStream);
         var clientIdLength = readClientIdLenght(inputStream);
         var clientIdContents = readClientIdContents(inputStream);
-        inputStream.skip(1); // Skip the 1-byte reserved field
-        //reading topics array..
-        var readArrayLength = readTopicArrayLength(inputStream);
+
+        inputStream.skip(1);
+
+        int arrayLength = readVarint(inputStream);
+        if (arrayLength == 0) {
+            throw new IOException("Invalid topics array length");
+        }
+        int actualArrayLength = arrayLength - 1;
+
         var topics = new ArrayList<TopicInfo>();
 
-        for (int i = 0; i < readArrayLength; i++) {
-            var topicLength = readTopicNameLength(inputStream);
-            var topicName = readTopicName(inputStream);
-            topics.add(new TopicInfo(topicLength, topicName));
-            //skipping tag buffer...
+        for (int i = 0; i < actualArrayLength; i++) {
+            String topicName = readCompactString(inputStream);
+            LOGGER.info("Read topic name: " + topicName);
             inputStream.skip(1);
-            LOGGER.info("Read topic name: " + new String(topicName));
+            byte[] topicNameBytes = topicName.getBytes(StandardCharsets.UTF_8);
+            topics.add(new TopicInfo((byte) topicNameBytes.length, topicNameBytes));
         }
-        inputStream.skip(2); // Skip the 2-byte reserved field
-        var responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
-        LOGGER.info("Read message size: " + msgSize);
+
+        byte[] limitBytes = new byte[4];
+        inputStream.read(limitBytes);
+        int responsePartitionLimit = ByteBuffer.wrap(limitBytes).getInt();
+
+        int cursorLength = readVarint(inputStream);
+        if (cursorLength > 0) {
+            inputStream.skip(cursorLength - 1);
+        }
+
+        inputStream.skip(1);
+
         return new DescribeTopicRequest(msgSize, apiKey, apiVersion, correlationId,
                 clientIdLength, clientIdContents,
-                readArrayLength, topics,
+                actualArrayLength, topics,
                 responsePartitionLimit);
-
     }
 
     private KafkaRequest readApiVersionRequest(InputStream inputStream) throws IOException {

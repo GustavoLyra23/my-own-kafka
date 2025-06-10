@@ -3,6 +3,7 @@ package web.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import static enums.REQUEST_DATA.*;
 
@@ -77,5 +78,57 @@ public class RequestReaderUtil {
         byte[] responsePartitionLimitBuff = new byte[RESPONSE_PARTITION_LIMIT_SIZE.getSize()];
         inputStream.read(responsePartitionLimitBuff);
         return ByteBuffer.wrap(responsePartitionLimitBuff).getInt();
+    }
+
+
+    public static String readCompactString(InputStream inputStream) throws IOException {
+        int length = readVarint(inputStream);
+
+        if (length == 0) {
+            return null;
+        }
+
+        int actualLength = length - 1;
+
+        if (actualLength == 0) {
+            return "";
+        }
+
+        byte[] stringBytes = new byte[actualLength];
+        int totalRead = 0;
+        while (totalRead < actualLength) {
+            int bytesRead = inputStream.read(stringBytes, totalRead, actualLength - totalRead);
+            if (bytesRead == -1) {
+                throw new IOException("EOF while reading compact string");
+            }
+            totalRead += bytesRead;
+        }
+
+        return new String(stringBytes, StandardCharsets.UTF_8);
+    }
+
+    public static int readVarint(InputStream inputStream) throws IOException {
+        int result = 0;
+        int shift = 0;
+
+        while (true) {
+            int b = inputStream.read();
+            if (b == -1) {
+                throw new IOException("EOF while reading varint");
+            }
+
+            result |= (b & 0x7F) << shift;
+
+            if ((b & 0x80) == 0) {
+                break;
+            }
+
+            shift += 7;
+            if (shift >= 32) {
+                throw new IOException("Varint too long");
+            }
+        }
+
+        return result;
     }
 }

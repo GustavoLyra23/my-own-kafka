@@ -14,7 +14,7 @@ public record DescribeTopicRequest(
         int correlationId,
         short clientIdLength,
         byte[] clientIdContents,
-        byte topicArrayLength,
+        int topicArrayLength,
         List<TopicInfo> topics,
         int responsePartitionLimit
 ) {
