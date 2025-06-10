@@ -126,16 +126,32 @@ public class KafkaServer {
 
     private DescribeTopicRequest readDescribeTopicPartitionRequest(InputStream inputStream) throws IOException {
         LOGGER.info("Reading DescribeTopicPartition request...");
-        int msgSize = readMsgRequest(inputStream);
-        var apiKey = readApiKey(inputStream, false);
-        var apiVersion = readApiVersion(inputStream);
-        var correlationId = readCorrelationId(inputStream);
-        var clientIdLength = readClientIdLenght(inputStream);
-        var clientIdContents = readClientIdContents(inputStream);
 
-        inputStream.skip(1); // Skip tag buffer
+        // Headers
+        int msgSize = readMsgRequest(inputStream);
+        LOGGER.info("✓ Message size: " + msgSize);
+
+        var apiKey = readApiKey(inputStream, false);
+        LOGGER.info("✓ API key: " + apiKey);
+
+        var apiVersion = readApiVersion(inputStream);
+        LOGGER.info("✓ API version: " + apiVersion);
+
+        var correlationId = readCorrelationId(inputStream);
+        LOGGER.info("✓ Correlation ID: " + correlationId);
+
+        var clientIdLength = readClientIdLenght(inputStream);
+        LOGGER.info("✓ Client ID length: " + clientIdLength);
+
+        byte[] clientIdContents = readExactly(inputStream, clientIdLength);
+        LOGGER.info("✓ Client ID: '" + new String(clientIdContents, StandardCharsets.UTF_8) + "'");
+
+        // Skip tag buffer
+        inputStream.skip(1);
 
         int arrayLength = readVarint(inputStream);
+        LOGGER.info("✓ Topics array length: " + arrayLength);
+
         if (arrayLength == 0) {
             throw new IOException("Invalid topics array length");
         }
@@ -145,24 +161,47 @@ public class KafkaServer {
 
         for (int i = 0; i < actualArrayLength; i++) {
             String topicName = readCompactString(inputStream);
-            LOGGER.info("Read topic name: " + topicName);
+            LOGGER.info("✓ Topic name: '" + topicName + "'");
+
             inputStream.skip(1); // Skip topic tag buffer
-            if (topicName == null || topicName.isEmpty()) throw new IOException("Invalid topic name at index " + i);
+
+            if (topicName == null || topicName.isEmpty()) {
+                throw new IOException("Invalid topic name at index " + i);
+            }
 
             byte[] topicNameBytes = topicName.getBytes(StandardCharsets.UTF_8);
             topics.add(new TopicInfo((byte) topicNameBytes.length, topicNameBytes));
         }
 
         int responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
+        LOGGER.info("✓ Partition limit: " + responsePartitionLimit);
+
         byte[] cursor = readCompactBytes(inputStream);
-        LOGGER.info("Read cursor: " + (cursor != null ? cursor.length + " bytes" : "null"));
+        LOGGER.info("✓ Cursor: " + (cursor != null ? cursor.length + " bytes" : "null"));
 
         inputStream.skip(1); // Skip final tag buffer
+
+        LOGGER.info("🎉 Request parsed successfully!");
 
         return new DescribeTopicRequest(msgSize, apiKey, apiVersion, correlationId,
                 clientIdLength, clientIdContents,
                 actualArrayLength, topics,
                 responsePartitionLimit);
+    }
+
+    private byte[] readExactly(InputStream inputStream, int length) throws IOException {
+        byte[] buffer = new byte[length];
+        int totalRead = 0;
+
+        while (totalRead < length) {
+            int bytesRead = inputStream.read(buffer, totalRead, length - totalRead);
+            if (bytesRead == -1) {
+                throw new IOException("EOF while reading " + length + " bytes (got " + totalRead + ")");
+            }
+            totalRead += bytesRead;
+        }
+
+        return buffer;
     }
 
     private KafkaRequest readApiVersionRequest(InputStream inputStream) throws IOException {
