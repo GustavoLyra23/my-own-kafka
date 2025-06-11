@@ -6,8 +6,7 @@ import java.util.List;
 import java.util.logging.Logger;
 
 /**
- * Data Transfer Object (DTO) for describing a topic in a messaging system.
- * This class encapsulates the topic's ID, name, and authorized operations.
+ * DescribeTopicDTO com estrutura correta incluindo tag buffers
  */
 public class DescribeTopicDTO implements IBufferByteDTO {
 
@@ -23,117 +22,93 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         topicList.add(topicResponse);
     }
 
-    /**
-     * Calcula o tamanho correto do corpo da resposta baseado no conteúdo real
-     */
-    private int calculateBodySize() {
-        int size = 0;
-
-        // Correlation ID (4 bytes)
-        size += 4;
-
-        // Throttle time (4 bytes) - mesmo que não usado, precisa estar presente
-        size += 4;
-
-        // Topics array length (compact format - 1 byte para arrays pequenos)
-        size += 1;
-
-        // Para cada tópico
-        for (TopicResponseDTO topic : topicList) {
-            // Error code (2 bytes)
-            size += 2;
-
-            // Topic name (compact string format)
-            // 1 byte para length + tamanho real do nome
-            size += 1 + topic.getTopicName().length;
-
-            // Topic ID (16 bytes - UUID)
-            size += 16;
-
-            // Is internal (1 byte)
-            size += 1;
-
-            // Partitions array (compact format - vazio, então 1 byte)
-            size += 1;
-
-            // Topic authorized operations (4 bytes)
-            size += 4;
-
-            // Tag buffer (1 byte)
-            size += 1;
-        }
-
-        // Next cursor (compact nullable bytes - null, então 1 byte)
-        size += 1;
-
-        // Final tag buffer (1 byte)
-        size += 1;
-
-        LOGGER.fine("Calculated body size: " + size + " for " + topicList.size() + " topics");
-        return size;
-    }
-
     @Override
     public ByteBuffer toByteBuffer() {
-        int bodySize = calculateBodySize();
-        LOGGER.fine("Creating DescribeTopicDTO buffer with body size: " + bodySize);
+        LOGGER.info("Creating DescribeTopicPartitions response with proper structure");
 
-        ByteBuffer buff = ByteBuffer.allocate(4 + bodySize);
+        ByteBuffer buffer = ByteBuffer.allocate(512);
 
-        // Message size (excluding this field itself)
-        buff.putInt(bodySize);
+        // Message size placeholder
+        int sizePos = buffer.position();
+        buffer.putInt(0);
+        int bodyStart = buffer.position();
 
+        // === RESPONSE HEADER ===
         // Correlation ID
-        buff.putInt(correlationId);
+        buffer.putInt(correlationId);
+        LOGGER.info("Added correlation ID: " + correlationId);
 
-        // Throttle time ms (0 = no throttling)
-        buff.putInt(0);
+        // Tag buffer after correlation ID (para versão com tagged fields)
+        buffer.put((byte) 0); // empty tag buffer
+        LOGGER.info("Added response header tag buffer");
 
-        // Topics array (compact format)
-        buff.put((byte) (topicList.size() + 1)); // +1 for compact array format
+        // === RESPONSE BODY ===
+        // Throttle time ms
+        buffer.putInt(0);
+        LOGGER.info("Added throttle time: 0");
 
-        for (TopicResponseDTO topic : topicList) {
-            // Error code
-            buff.putShort(topic.getErrorCode());
+        // Topics array
+        if (topicList.isEmpty()) {
+            buffer.put((byte) 0); // empty compact array
+        } else {
+            buffer.put((byte) (topicList.size() + 1)); // compact array length
 
-            // Topic name (compact string)
-            byte[] topicNameBytes = topic.getTopicName();
-            buff.put((byte) (topicNameBytes.length + 1)); // +1 for compact string format
-            buff.put(topicNameBytes);
+            for (TopicResponseDTO topic : topicList) {
+                String topicName = new String(topic.getTopicName());
+                LOGGER.info("Adding topic: " + topicName + " with error: " + topic.getErrorCode());
 
-            // Topic ID (16 bytes UUID - usando o valor que você já tem)
-            byte[] topicId = topic.getTopicId();
-            if (topicId.length >= 16) {
-                // Se o topicId tem pelo menos 16 bytes, usa os primeiros 16
-                buff.put(topicId, 0, 16);
-            } else {
-                // Se é menor, completa com zeros
-                buff.put(topicId);
-                for (int i = topicId.length; i < 16; i++) {
-                    buff.put((byte) 0);
-                }
+                // Error code
+                buffer.putShort(topic.getErrorCode());
+
+                // Topic name (compact string)
+                byte[] nameBytes = topic.getTopicName();
+                buffer.put((byte) (nameBytes.length + 1));
+                buffer.put(nameBytes);
+
+                // Topic ID (16 bytes)
+                buffer.put(new byte[16]);
+
+                // Is internal
+                buffer.put((byte) 0);
+
+                // Partitions (empty compact array)
+                buffer.put((byte) 1);
+
+                // Topic authorized operations
+                buffer.putInt(0);
+
+                // Topic tag buffer
+                buffer.put((byte) 0);
             }
-
-            // Is internal
-            buff.put(topic.getIsInternal());
-
-            // Partitions array (empty - compact format)
-            buff.put((byte) 1); // empty compact array = 1
-
-            // Topic authorized operations (0 = no operations)
-            buff.putInt(0);
-
-            // Topic tag buffer
-            buff.put((byte) 0);
         }
 
-        // Next cursor (null - compact nullable bytes)
-        buff.put((byte) 0); // 0 = null
+        // Next cursor (null)
+        buffer.put((byte) 0);
 
         // Final tag buffer
-        buff.put((byte) 0);
+        buffer.put((byte) 0);
 
-        LOGGER.fine("Created response buffer with " + buff.position() + " bytes");
-        return buff;
+        // Set message size
+        int bodySize = buffer.position() - bodyStart;
+        buffer.putInt(sizePos, bodySize);
+
+        LOGGER.info("Response size: " + bodySize);
+
+        buffer.flip();
+
+        // Debug log
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        buffer.rewind();
+
+        StringBuilder hex = new StringBuilder("Response hex:\n");
+        for (int i = 0; i < Math.min(40, bytes.length); i++) {
+            if (i % 16 == 0) hex.append(String.format("%04x | ", i));
+            hex.append(String.format("%02x ", bytes[i] & 0xFF));
+            if ((i + 1) % 16 == 0) hex.append("\n");
+        }
+        LOGGER.info(hex.toString());
+
+        return buffer;
     }
 }

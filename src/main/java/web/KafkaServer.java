@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static enums.API_KEYS.*;
 import static enums.ERROR.UNKNOWN_TOPIC_OR_PARTITION;
 import static enums.ERROR.UNSUPPORTED_VERSION;
 import static web.ThreadSocketPoolExecutor.executeParallelTask;
