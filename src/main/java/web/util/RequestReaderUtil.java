@@ -7,7 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static enums.REQUEST_DATA.*;
+import static enums.REQUEST_DATA.CLIENTID_CONTENTS;
+import static enums.REQUEST_DATA.TOPIC_NAME_SIZE;
 
 /**
  * Utility class for reading various request components from InputStreams with guaranteed complete reads.
@@ -68,13 +69,11 @@ public class RequestReaderUtil {
         while (totalRead < length) {
             int bytesRead = inputStream.read(buffer, totalRead, length - totalRead);
             if (bytesRead == -1) {
-                LOGGER.log(Level.SEVERE, "EOF encountered after reading {0} of {1} bytes",
-                        new Object[]{totalRead, length});
+                LOGGER.log(Level.SEVERE, "EOF encountered after reading {0} of {1} bytes", new Object[]{totalRead, length});
                 throw new IOException("EOF while reading " + length + " bytes (got " + totalRead + ")");
             }
             totalRead += bytesRead;
-            LOGGER.log(Level.FINEST, "Read {0} bytes, total: {1}/{2}",
-                    new Object[]{bytesRead, totalRead, length});
+            LOGGER.log(Level.FINEST, "Read {0} bytes, total: {1}/{2}", new Object[]{bytesRead, totalRead, length});
         }
 
         LOGGER.log(Level.FINE, "Successfully read {0} bytes", length);
@@ -190,8 +189,7 @@ public class RequestReaderUtil {
         if (skip) {
             long skipped = inputStream.skip(SKIP_MSG_SIZE);
             if (skipped != SKIP_MSG_SIZE) {
-                LOGGER.log(Level.SEVERE, "Could not skip {0} bytes, only skipped {1}",
-                        new Object[]{SKIP_MSG_SIZE, skipped});
+                LOGGER.log(Level.SEVERE, "Could not skip {0} bytes, only skipped {1}", new Object[]{SKIP_MSG_SIZE, skipped});
                 throw new IOException("Could not skip " + SKIP_MSG_SIZE + " bytes (skipped " + skipped + ")");
             }
             LOGGER.log(Level.FINE, "Skipped {0} bytes", SKIP_MSG_SIZE);
@@ -425,8 +423,7 @@ public class RequestReaderUtil {
                 totalSkipped += 1;
             } else {
                 totalSkipped += skipped;
-                LOGGER.log(Level.FINEST, "Skipped {0} bytes, total: {1}/{2}",
-                        new Object[]{skipped, totalSkipped, bytesToSkip});
+                LOGGER.log(Level.FINEST, "Skipped {0} bytes, total: {1}/{2}", new Object[]{skipped, totalSkipped, bytesToSkip});
             }
         }
 

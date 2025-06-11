@@ -423,13 +423,23 @@ public class KafkaServer {
      * @param request the original request
      * @return DescribeTopicDTO containing topic information
      */
+    /**
+     * Creates a response for DescribeTopicPartitions requests with detailed logging.
+     */
     private DescribeTopicDTO createDescribeTopicPartitionsResponse(DescribeTopicRequest request) {
-        // TODO: Implement logic to verify if topic exists and return appropriate error code
-        final byte[] TOPIC_ID = "00000000-0000-0000-0000-000000000000".getBytes();
+        LOGGER.info("=== Creating DescribeTopicPartitions Response ===");
+        LOGGER.info("Request correlation ID: " + request.correlationId());
+        LOGGER.info("Number of topics in request: " + request.topics().size());
+
+        // UUID padrão para tópicos desconhecidos
+        final byte[] TOPIC_ID = new byte[16]; // UUID vazio (todos zeros)
 
         DescribeTopicDTO response = new DescribeTopicDTO(request.correlationId());
 
-        for (TopicInfo topic : request.topics()) {
+        for (int i = 0; i < request.topics().size(); i++) {
+            TopicInfo topic = request.topics().get(i);
+            String topicName = new String(topic.topicName());
+            LOGGER.info("Processing topic " + (i + 1) + ": '" + topicName + "'");
             TopicResponseDTO topicResponse = new TopicResponseDTO(
                     TOPIC_ID,
                     UNKNOWN_TOPIC_OR_PARTITION.getCode(),
@@ -438,9 +448,9 @@ public class KafkaServer {
                     (byte) 0
             );
             response.addTopicResponse(topicResponse);
+            LOGGER.info("Added topic response for: " + topicName + " with error code: " + UNKNOWN_TOPIC_OR_PARTITION.getCode());
         }
-
-        LOGGER.fine("Created DescribeTopicPartitions response for " + request.topics().size() + " topics");
+        LOGGER.info("Created response with " + request.topics().size() + " topics");
         return response;
     }
 
