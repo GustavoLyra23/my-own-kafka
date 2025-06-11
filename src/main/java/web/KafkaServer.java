@@ -289,43 +289,68 @@ public class KafkaServer {
      * @throws IOException if parsing fails
      */
     private DescribeTopicRequest parseDescribeTopicPartitionsRequest(InputStream inputStream, int messageSize, short apiKey) throws IOException {
-        LOGGER.fine("Parsing DescribeTopicPartitions request");
+        LOGGER.fine("Parsing DescribeTopicPartitions request, message size: " + messageSize);
 
-        // Parse request header
-        short apiVersion = readApiVersion(inputStream);
-        LOGGER.fine("API version: " + apiVersion);
+        try {
+            // Parse request header
+            short apiVersion = readApiVersion(inputStream);
+            LOGGER.fine("API version: " + apiVersion);
 
-        int correlationId = readCorrelationId(inputStream);
-        LOGGER.fine("Correlation ID: " + correlationId);
+            int correlationId = readCorrelationId(inputStream);
+            LOGGER.fine("Correlation ID: " + correlationId);
 
-        // Parse client information
-        short clientIdLength = readClientIdLenght(inputStream);
-        LOGGER.fine("Client ID length: " + clientIdLength);
+            // Parse client information
+            short clientIdLength = readClientIdLenght(inputStream);
+            LOGGER.fine("Client ID length: " + clientIdLength);
 
-        byte[] clientIdContents = readExactly(inputStream, clientIdLength);
-        String clientId = new String(clientIdContents, StandardCharsets.UTF_8);
-        LOGGER.fine("Client ID: '" + clientId + "'");
+            byte[] clientIdContents = readExactly(inputStream, clientIdLength);
+            String clientId = new String(clientIdContents, StandardCharsets.UTF_8);
+            LOGGER.fine("Client ID: '" + clientId + "'");
 
-        // Skip tag buffer
-        skipBytes(inputStream, TAG_BUFFER_SIZE);
+            // Skip tag buffer
+            skipBytes(inputStream, TAG_BUFFER_SIZE);
 
-        // Parse topics array
-        List<TopicInfo> topics = parseTopicsArray(inputStream);
+            // Parse topics array
+            List<TopicInfo> topics = parseTopicsArray(inputStream);
+            LOGGER.fine("Parsed " + topics.size() + " topics");
 
-        // Parse request footer
-        int responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
-        LOGGER.fine("Partition limit: " + responsePartitionLimit);
+            // Parse request footer
+            int responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
+            LOGGER.fine("Partition limit: " + responsePartitionLimit);
 
-        byte[] cursor = readCompactBytes(inputStream);
-        LOGGER.fine("Cursor: " + (cursor != null ? cursor.length + " bytes" : "null"));
+            // Try to read cursor, but handle errors gracefully
+            byte[] cursor = null;
+            try {
+                cursor = readCompactBytes(inputStream);
+                LOGGER.fine("Cursor: " + (cursor != null ? cursor.length + " bytes" : "null"));
+            } catch (Exception e) {
+                LOGGER.warning("Failed to read cursor field, treating as null: " + e.getMessage());
+                // Skip any remaining bytes
+                try {
+                    while (inputStream.available() > 1) {
+                        inputStream.skip(1);
+                    }
+                } catch (Exception skipException) {
+                    LOGGER.fine("Error while skipping remaining bytes: " + skipException.getMessage());
+                }
+            }
 
-        // Skip final tag buffer
-        skipBytes(inputStream, TAG_BUFFER_SIZE);
+            // Try to skip final tag buffer
+            try {
+                skipBytes(inputStream, TAG_BUFFER_SIZE);
+            } catch (Exception e) {
+                LOGGER.fine("Could not skip final tag buffer: " + e.getMessage());
+            }
 
-        LOGGER.info("Successfully parsed DescribeTopicPartitions request with " + topics.size() + " topics");
+            LOGGER.info("Successfully parsed DescribeTopicPartitions request with " + topics.size() + " topics");
 
-        return new DescribeTopicRequest(messageSize, apiKey, apiVersion, correlationId,
-                clientIdLength, clientIdContents, topics.size(), topics, responsePartitionLimit);
+            return new DescribeTopicRequest(messageSize, apiKey, apiVersion, correlationId,
+                    clientIdLength, clientIdContents, topics.size(), topics, responsePartitionLimit);
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error parsing DescribeTopicPartitions request", e);
+            throw new IOException("Failed to parse DescribeTopicPartitions request: " + e.getMessage(), e);
+        }
     }
 
     /**

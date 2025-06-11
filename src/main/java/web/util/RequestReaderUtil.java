@@ -351,7 +351,7 @@ public class RequestReaderUtil {
     }
 
     /**
-     * Reads a variable-length integer (varint) from the input stream.
+     * Reads a variable-length integer (varint) from the input stream with improved error handling.
      *
      * <p>Varints are encoded using a variable number of bytes where each byte contains
      * 7 bits of data and 1 continuation bit. The continuation bit indicates whether
@@ -366,29 +366,34 @@ public class RequestReaderUtil {
 
         int result = 0;
         int shift = 0;
+        int bytesRead = 0;
+        final int MAX_VARINT_BYTES = 5; // Maximum bytes for a 32-bit varint
 
-        while (true) {
+        while (bytesRead < MAX_VARINT_BYTES) {
             int b = inputStream.read();
             if (b == -1) {
-                LOGGER.log(Level.SEVERE, "EOF encountered while reading varint");
+                LOGGER.log(Level.SEVERE, "EOF encountered while reading varint after {0} bytes", bytesRead);
                 throw new IOException("EOF while reading varint");
             }
 
+            bytesRead++;
             result |= (b & 0x7F) << shift;
 
             if ((b & 0x80) == 0) {
-                break;
+                // No continuation bit, we're done
+                LOGGER.log(Level.FINEST, "Read varint: {0} (used {1} bytes)", new Object[]{result, bytesRead});
+                return result;
             }
 
             shift += 7;
             if (shift >= 32) {
-                LOGGER.log(Level.SEVERE, "Varint too long (shift >= 32)");
+                LOGGER.log(Level.SEVERE, "Varint too long (shift >= 32) after {0} bytes", bytesRead);
                 throw new IOException("Varint too long");
             }
         }
 
-        LOGGER.log(Level.FINEST, "Read varint: {0}", result);
-        return result;
+        LOGGER.log(Level.SEVERE, "Varint exceeded maximum length of {0} bytes", MAX_VARINT_BYTES);
+        throw new IOException("Varint exceeded maximum length of " + MAX_VARINT_BYTES + " bytes");
     }
 
     // ===== ADDITIONAL UTILITY METHODS =====
@@ -439,11 +444,29 @@ public class RequestReaderUtil {
      * @return the byte array, or null if the length was 0
      * @throws IOException if an I/O error occurs during reading
      */
+    /**
+     * Reads a compact bytes field from the Kafka protocol stream with defensive handling.
+     *
+     * <p>Compact bytes are prefixed with a varint length field. A length of 0 indicates
+     * null bytes, while a length of 1 indicates an empty byte array. This format is
+     * commonly used for cursors and other binary data.</p>
+     *
+     * @param inputStream the input stream to read from
+     * @return the byte array, or null if the length was 0
+     * @throws IOException if an I/O error occurs during reading
+     */
     public static byte[] readCompactBytes(InputStream inputStream) throws IOException {
         LOGGER.log(Level.FINE, "Reading compact bytes");
 
-        int length = readVarint(inputStream);
-        LOGGER.log(Level.FINE, "Compact bytes length: {0}", length);
+        int length;
+        try {
+            length = readVarint(inputStream);
+            LOGGER.log(Level.FINE, "Compact bytes length: {0}", length);
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Failed to read varint for compact bytes: {0}", e.getMessage());
+            // Treat as null cursor for malformed requests
+            return null;
+        }
 
         if (length == 0) {
             LOGGER.log(Level.FINE, "Compact bytes is null");
@@ -456,8 +479,20 @@ public class RequestReaderUtil {
             return new byte[0];
         }
 
-        byte[] result = readExactly(inputStream, actualLength);
-        LOGGER.log(Level.FINE, "Read compact bytes: {0} bytes", result.length);
-        return result;
+        // Defensive check: if actualLength seems unreasonably large, treat as null
+        if (actualLength > 1024) { // Reasonable limit for cursor data
+            LOGGER.log(Level.WARNING, "Compact bytes length too large ({0}), treating as null", actualLength);
+            return null;
+        }
+
+        try {
+            byte[] result = readExactly(inputStream, actualLength);
+            LOGGER.log(Level.FINE, "Read compact bytes: {0} bytes", result.length);
+            return result;
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Failed to read compact bytes data: {0}", e.getMessage());
+            // Treat as null if we can't read the expected data
+            return null;
+        }
     }
 }
