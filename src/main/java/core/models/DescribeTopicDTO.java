@@ -118,6 +118,8 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         buffer.put((byte) 0); // This is the correct way for compact nullable
 
         // NO final tag buffer - maybe that's what's causing the issue
+        buffer.put((byte) 0);
+
 
         buffer.flip();
 
