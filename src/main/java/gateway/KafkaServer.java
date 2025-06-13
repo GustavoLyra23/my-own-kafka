@@ -1,4 +1,4 @@
-package web;
+package gateway;
 
 import core.models.*;
 import enums.API_KEYS;
@@ -122,7 +122,7 @@ public class KafkaServer {
                 // Parse request header to determine the API type
                 int messageSize = readMsgRequest(inputStream);
                 short apiKey = readApiKey(inputStream);
-                dispatchRequest(clientSocket, messageSize, apiKey);
+                dispatchRequest(clientSocket, messageSize, apiKey, inputStream);
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error handling client request", e);
             }
@@ -149,18 +149,18 @@ public class KafkaServer {
      * @param messageSize  the size of the message in bytes
      * @param apiKey       the API key indicating the request type
      */
-    private void dispatchRequest(Socket clientSocket, int messageSize, short apiKey) {
+    private void dispatchRequest(Socket clientSocket, int messageSize, short apiKey, InputStream inputStream) {
         String clientAddress = formatClientAddress(clientSocket);
 
         switch (API_KEYS.apiKeyFromInt(apiKey)) {
             case API_VERSIONS:
                 LOGGER.info("Received ApiVersions request from client: " + clientAddress);
-                executeParallelTask(client -> handleApiVersionsRequest(client, messageSize, apiKey), clientSocket);
+                executeParallelTask(client -> handleApiVersionsRequest(client, messageSize, apiKey, inputStream), clientSocket);
                 break;
 
             case DESCRIBE_TOPIC_PARTITION:
                 LOGGER.info("Received DescribeTopicPartitions request from client: " + clientAddress);
-                executeParallelTask(client -> handleDescribeTopicPartitionsRequest(client, messageSize, apiKey), clientSocket);
+                executeParallelTask(client -> handleDescribeTopicPartitionsRequest(client, messageSize, apiKey, inputStream), clientSocket);
                 break;
 
             default:
@@ -179,25 +179,50 @@ public class KafkaServer {
      * @param messageSize  the size of the first message
      * @param apiKey       the API key for the first request
      */
-    private void handleApiVersionsRequest(Socket clientSocket, int messageSize, short apiKey) {
+    /**
+     * Handles ApiVersions requests from clients.
+     * FIXED: Properly handles multiple sequential requests on the same connection
+     */
+    private void handleApiVersionsRequest(Socket clientSocket, int messageSize, short apiKey, InputStream inputStream) {
         try (clientSocket) {
             clientSocket.setSoTimeout(SOCKET_TIMEOUT_MS);
             OutputStream outputStream = clientSocket.getOutputStream();
-            var inputStream = clientSocket.getInputStream();
             String clientAddress = formatClientAddress(clientSocket);
 
             int requestCount = 0;
+
+            // Current request data (initialized with first request)
+            int currentMessageSize = messageSize;
+            short currentApiKey = apiKey;
 
             while (!clientSocket.isClosed() && clientSocket.isConnected()) {
                 try {
                     requestCount++;
                     LOGGER.info("Processing ApiVersions request " + requestCount + " from client: " + clientAddress);
 
-                    KafkaRequest request = parseApiVersionsRequest(inputStream, messageSize, apiKey);
+                    // Process current request
+                    KafkaRequest request = parseApiVersionsRequest(inputStream, currentMessageSize, currentApiKey);
                     ApiVersionResponseDTO response = createApiVersionsResponse(request);
                     sendResponse(outputStream, response);
 
                     LOGGER.info("ApiVersions request " + requestCount + " completed for correlation ID: " + request.correlationId());
+
+                    // For subsequent requests, read new headers
+                    try {
+                        // Try to read next message header
+                        currentMessageSize = readMsgRequest(inputStream);
+                        currentApiKey = readApiKey(inputStream);
+
+                        // Verify it's still an ApiVersions request
+                        if (API_KEYS.apiKeyFromInt(currentApiKey) != API_KEYS.API_VERSIONS) {
+                            LOGGER.info("Next request is not ApiVersions (API key: " + currentApiKey + "), ending loop");
+                            break;
+                        }
+                    } catch (IOException e) {
+                        // No more requests available
+                        LOGGER.fine("No more requests: " + e.getMessage());
+                        break;
+                    }
 
                 } catch (SocketTimeoutException e) {
                     handleClientTimeout(clientAddress, requestCount);
@@ -222,12 +247,12 @@ public class KafkaServer {
      * @param messageSize  the size of the first message
      * @param apiKey       the API key for the first request
      */
-    private void handleDescribeTopicPartitionsRequest(Socket clientSocket, int messageSize, short apiKey) {
+    private void handleDescribeTopicPartitionsRequest(Socket clientSocket, int messageSize, short apiKey, InputStream inputStream) {
         try (clientSocket) {
             clientSocket.setSoTimeout(SOCKET_TIMEOUT_MS);
             OutputStream outputStream = clientSocket.getOutputStream();
-            var inputStream = clientSocket.getInputStream();
             String clientAddress = formatClientAddress(clientSocket);
+
             int requestCount = 0;
 
             while (!clientSocket.isClosed() && clientSocket.isConnected()) {
