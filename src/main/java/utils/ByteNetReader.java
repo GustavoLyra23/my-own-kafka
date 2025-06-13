@@ -14,12 +14,12 @@ import java.nio.ByteBuffer;
  * @author Your Name
  * @version 1.0
  */
-public class RequestReaderUtil {
+public class ByteNetReader {
 
     /**
      * Private constructor to prevent instantiation of this utility class.
      */
-    private RequestReaderUtil() {
+    private ByteNetReader() {
     }
 
     /**
@@ -80,7 +80,7 @@ public class RequestReaderUtil {
      * Reads an API key from the input stream with optional skip functionality.
      *
      * @param inputStream the input stream to read from
-     * @param skip if true, skips 4 bytes before reading the API key
+     * @param skip        if true, skips 4 bytes before reading the API key
      * @return the API key as a short value
      * @throws IOException if an I/O error occurs during reading or skipping
      */
@@ -102,30 +102,4 @@ public class RequestReaderUtil {
     public static short readApiVersion(InputStream inputStream) throws IOException {
         return readInt16(inputStream);
     }
-
-    /**
-     * Reads the client ID length from the input stream.
-     * This value typically indicates the length of the client identifier that follows.
-     *
-     * @param inputStream the input stream to read from
-     * @return the client ID length as a short value
-     * @throws IOException if an I/O error occurs during reading
-     */
-    public static short readClientIdLenght(InputStream inputStream) throws IOException {
-        return readInt16(inputStream);
-    }
-
-    /**
-     * Reads the describe topic partition limit from the input stream.
-     * This value specifies the maximum number of topic partitions to describe.
-     *
-     * @param inputStream the input stream to read from
-     * @return the partition limit as an integer value
-     * @throws IOException if an I/O error occurs during reading
-     */
-    public static int readDescribeTopicPartitionLimit(InputStream inputStream) throws IOException {
-        return readInt32(inputStream);
-    }
-
-    // Remover métodos não utilizados ou muito complexos
 }

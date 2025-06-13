@@ -37,6 +37,15 @@ public class TopicResponseDTO {
         return topicAuthorizedOperations;
     }
 
+    /**
+     * Adds a topic operation to the list of authorized operations for this topic.
+     *
+     * @param operation the operation to be added
+     */
+    public void addTopicAuthorizedOperation(TOPIC_OPERATIONS operation) {
+        topicAuthorizedOperations.add(operation);
+    }
+
     public short getErrorCode() {
         return errorCode;
     }

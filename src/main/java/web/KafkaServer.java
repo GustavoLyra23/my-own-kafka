@@ -17,7 +17,7 @@ import java.util.logging.Logger;
 import static core.models.DescribeTopicDTO.createDescribeTopicPartitionsResponse;
 import static enums.ERROR.UNSUPPORTED_VERSION;
 import static utils.ThreadSocketPoolExecutor.executeParallelTask;
-import static utils.RequestReaderUtil.*;
+import static utils.ByteNetReader.*;
 
 /**
  * Kafka server implementation that handles client connections and processes Kafka protocol requests.
@@ -114,6 +114,7 @@ public class KafkaServer {
     private void runServerLoop() {
         LOGGER.info("Entering main server loop, ready to accept client connections");
 
+        //noinspection InfiniteLoopStatement
         while (true) {
             try {
                 Socket clientSocket = acceptClientConnection();

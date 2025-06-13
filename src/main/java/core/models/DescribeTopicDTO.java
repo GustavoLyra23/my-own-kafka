@@ -81,7 +81,7 @@ public class DescribeTopicDTO implements IBufferByteDTO {
      *
      * @param request the DescribeTopicRequest containing the topics to describe
      * @return a new DescribeTopicDTO containing responses for all requested topics
-     * @throws NullPointerException if request is null
+     * @throws NullPointerException     if request is null
      * @throws IllegalArgumentException if request contains invalid topic information
      */
     public static DescribeTopicDTO createDescribeTopicPartitionsResponse(DescribeTopicRequest request) {
@@ -217,7 +217,7 @@ public class DescribeTopicDTO implements IBufferByteDTO {
      *
      * @param buffer the ByteBuffer to write topic data into
      * @throws java.nio.BufferOverflowException if the buffer doesn't have enough remaining space
-     * @throws NullPointerException if buffer is null
+     * @throws NullPointerException             if buffer is null
      */
     private void listToBuff(ByteBuffer buffer) {
         for (TopicResponseDTO topic : topicList) {
@@ -230,16 +230,16 @@ public class DescribeTopicDTO implements IBufferByteDTO {
             buffer.put(nameBytes);
 
             // Topic ID (16 bytes)
-            buffer.put(new byte[16]);
+            buffer.put(topic.getTopicId());
 
             // Is internal
-            buffer.put((byte) 0);
+            buffer.put(topic.getIsInternal());
 
             // Partitions (empty compact array)
             buffer.put((byte) 1);
 
-            // Authorized operations
-            buffer.putInt(0);
+            // Authorized operations, TODO: check if this is correct...
+            buffer.put(new byte[4]);
 
             // Topic tag buffer
             buffer.put((byte) 0);
