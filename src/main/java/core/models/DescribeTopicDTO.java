@@ -242,7 +242,7 @@ public class DescribeTopicDTO implements IBufferByteDTO {
             buffer.put(new byte[4]);
 
             // Topic tag buffer
-            buffer.put((byte) 0);
+//            buffer.put((byte) 0);
         }
     }
 }
