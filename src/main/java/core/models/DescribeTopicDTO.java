@@ -51,10 +51,7 @@ public class DescribeTopicDTO implements IBufferByteDTO {
 
     @Override
     public ByteBuffer toByteBuffer() {
-        LOGGER.info("Creating response WITH response header tag buffer");
-
-        // ESTRUTURA CORRETA:
-        // message_size + correlation_id + RESPONSE_HEADER_TAG + throttle_time + topics + next_cursor
+        LOGGER.info("TESTING: Using -1 for null next_cursor");
 
         int bodySize = 4 + 1 + 4 + 1; // correlation + HEADER_TAG + throttle + topics_length
 
@@ -68,13 +65,13 @@ public class DescribeTopicDTO implements IBufferByteDTO {
             bodySize += 1; // topic tag buffer
         }
 
-        // Next cursor (compact nullable bytes - null = 1 byte)
-        bodySize += 1; // next_cursor null
+        // Next cursor: -1 para null (pode ser o formato correto)
+        bodySize += 1; // next_cursor como varint -1
         bodySize += 1; // final tag buffer
 
         int totalSize = 4 + bodySize;
 
-        LOGGER.info("With header tag buffer: " + totalSize + " bytes");
+        LOGGER.info("Using -1 for cursor: " + totalSize + " bytes");
 
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
 
@@ -84,10 +81,10 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         // Correlation ID
         buffer.putInt(correlationId);
 
-        // RESPONSE HEADER TAG BUFFER (importante!)
+        // Response header tag buffer
         buffer.put((byte) 0);
 
-        // Throttle time ms (agora na posição correta)
+        // Throttle time ms
         buffer.putInt(0);
 
         // Topics array
@@ -118,8 +115,9 @@ public class DescribeTopicDTO implements IBufferByteDTO {
             buffer.put((byte) 0);
         }
 
-        // Next cursor (null)
-        buffer.put((byte) 0);
+        // Next cursor: usar -1 como varint para representar null
+        // Em varint, -1 é representado como 0xFF
+        buffer.put((byte) 0xFF);
 
         // Final tag buffer
         buffer.put((byte) 0);
@@ -130,7 +128,7 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         buffer.get(bytes);
         buffer.rewind();
 
-        StringBuilder hex = new StringBuilder("WITH HEADER TAG - Should fix throttle time:\n");
+        StringBuilder hex = new StringBuilder("CURSOR -1 test:\n");
         for (int i = 0; i < bytes.length; i++) {
             if (i % 16 == 0) hex.append(String.format("%04x | ", i));
             hex.append(String.format("%02x ", bytes[i] & 0xFF));
@@ -138,7 +136,7 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         }
         LOGGER.info(hex.toString());
 
-        LOGGER.info("✅ Fixed structure: message + correlation + HEADER_TAG + throttle + topics");
+        LOGGER.info("✅ TESTING: Used 0xFF (-1) for null cursor");
 
         return buffer;
     }
