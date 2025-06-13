@@ -80,14 +80,10 @@ public class ByteNetReader {
      * Reads an API key from the input stream with optional skip functionality.
      *
      * @param inputStream the input stream to read from
-     * @param skip        if true, skips 4 bytes before reading the API key
      * @return the API key as a short value
      * @throws IOException if an I/O error occurs during reading or skipping
      */
-    public static short readApiKey(InputStream inputStream, boolean skip) throws IOException {
-        if (skip) {
-            inputStream.skip(4);
-        }
+    public static short readApiKey(InputStream inputStream) throws IOException {
         return readInt16(inputStream);
     }
 
