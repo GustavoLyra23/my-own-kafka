@@ -1,5 +1,9 @@
 package enums;
 
+/**
+ * Enum representing api keys in a Kafka-like system.
+ * Each key corresponds to a specific action that will be performed by the system.
+ */
 public enum API_KEYS {
 
     API_VERSIONS(18),

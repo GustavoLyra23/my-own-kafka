@@ -1,10 +1,15 @@
 package core.models;
 
 import enums.TOPIC_OPERATIONS;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+/**
+ * Represents a response for a topic in Kafka.
+ * This class contains details about the topic, including its ID, name, error code, and whether it is internal.
+ */
 public class TopicResponseDTO {
     private static final Logger LOGGER = Logger.getLogger(TopicResponseDTO.class.getName());
 
@@ -16,19 +21,12 @@ public class TopicResponseDTO {
     private final byte isInternal;
 
     public TopicResponseDTO(byte[] topicId, short errorCode, byte topicLength, byte[] topicName, byte isInternal) {
+        LOGGER.info("Creating topic response....");
         this.topicId = topicId;
         this.errorCode = errorCode;
         this.topicLength = topicLength;
         this.topicName = topicName;
         this.isInternal = isInternal;
-
-        // Log para debug
-        LOGGER.fine("Created TopicResponseDTO:");
-        LOGGER.fine("  Topic name: " + (topicName != null ? new String(topicName) : "null"));
-        LOGGER.fine("  Topic length: " + topicLength);
-        LOGGER.fine("  Error code: " + errorCode);
-        LOGGER.fine("  Is internal: " + isInternal);
-        LOGGER.fine("  Topic ID length: " + (topicId != null ? topicId.length : 0));
     }
 
     public byte[] getTopicId() {

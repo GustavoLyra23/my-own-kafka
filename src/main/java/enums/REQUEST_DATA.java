@@ -1,5 +1,8 @@
 package enums;
 
+/**
+ * Enum representing the size in bytes of various components in a Kafka-like request.
+ */
 public enum REQUEST_DATA {
 
     MSG_SIZE(4),

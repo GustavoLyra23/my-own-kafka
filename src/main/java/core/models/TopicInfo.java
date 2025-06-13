@@ -5,8 +5,6 @@ package core.models;
  *
  * @param topicNameLength The length of the topic name.
  * @param topicName       The name of the topic as a byte array.
- * @param topicNameLength
- * @param topicName
  */
 public record TopicInfo(byte topicNameLength, byte[] topicName) {
 }

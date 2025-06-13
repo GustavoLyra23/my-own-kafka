@@ -7,5 +7,10 @@ import java.nio.ByteBuffer;
  * This is typically used for network communication where data needs to be serialized.
  */
 public interface IBufferByteDTO {
+    /**
+     * Converts the DTO to a ByteBuffer representation.
+     *
+     * @return {@link ByteBuffer} The ByteBuffer containing the serialized data of the DTO.
+     */
     ByteBuffer toByteBuffer();
 }

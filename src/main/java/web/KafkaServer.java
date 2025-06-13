@@ -9,16 +9,15 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static enums.ERROR.UNKNOWN_TOPIC_OR_PARTITION;
+import static core.models.DescribeTopicDTO.createDescribeTopicPartitionsResponse;
 import static enums.ERROR.UNSUPPORTED_VERSION;
-import static web.ThreadSocketPoolExecutor.executeParallelTask;
-import static web.util.RequestReaderUtil.*;
+import static utils.ThreadSocketPoolExecutor.executeParallelTask;
+import static utils.RequestReaderUtil.*;
 
 /**
  * Kafka server implementation that handles client connections and processes Kafka protocol requests.
@@ -119,11 +118,10 @@ public class KafkaServer {
             try {
                 Socket clientSocket = acceptClientConnection();
                 InputStream inputStream = clientSocket.getInputStream();
-
                 // Parse request header to determine the API type
                 int messageSize = readMsgRequest(inputStream);
                 short apiKey = readApiKey(inputStream, false);
-                dispatchRequest(clientSocket, messageSize, apiKey);
+                dispatchRequest(clientSocket, messageSize, apiKey, inputStream);
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error handling client request", e);
             }
@@ -150,18 +148,18 @@ public class KafkaServer {
      * @param messageSize  the size of the message in bytes
      * @param apiKey       the API key indicating the request type
      */
-    private void dispatchRequest(Socket clientSocket, int messageSize, short apiKey) {
+    private void dispatchRequest(Socket clientSocket, int messageSize, short apiKey, InputStream inputStream) {
         String clientAddress = formatClientAddress(clientSocket);
 
         switch (API_KEYS.apiKeyFromInt(apiKey)) {
             case API_VERSIONS:
                 LOGGER.info("Received ApiVersions request from client: " + clientAddress);
-                executeParallelTask(client -> handleApiVersionsRequest(client, messageSize, apiKey), clientSocket);
+                executeParallelTask(client -> handleApiVersionsRequest(client, messageSize, apiKey, inputStream), clientSocket);
                 break;
 
             case DESCRIBE_TOPIC_PARTITION:
                 LOGGER.info("Received DescribeTopicPartitions request from client: " + clientAddress);
-                executeParallelTask(client -> handleDescribeTopicPartitionsRequest(client, messageSize, apiKey), clientSocket);
+                executeParallelTask(client -> handleDescribeTopicPartitionsRequest(client, messageSize, apiKey, inputStream), clientSocket);
                 break;
 
             default:
@@ -180,11 +178,9 @@ public class KafkaServer {
      * @param messageSize  the size of the first message
      * @param apiKey       the API key for the first request
      */
-    private void handleApiVersionsRequest(Socket clientSocket, int messageSize, short apiKey) {
+    private void handleApiVersionsRequest(Socket clientSocket, int messageSize, short apiKey, InputStream inputStream) {
         try (clientSocket) {
             clientSocket.setSoTimeout(SOCKET_TIMEOUT_MS);
-
-            InputStream inputStream = clientSocket.getInputStream();
             OutputStream outputStream = clientSocket.getOutputStream();
             String clientAddress = formatClientAddress(clientSocket);
 
@@ -224,11 +220,9 @@ public class KafkaServer {
      * @param messageSize  the size of the first message
      * @param apiKey       the API key for the first request
      */
-    private void handleDescribeTopicPartitionsRequest(Socket clientSocket, int messageSize, short apiKey) {
+    private void handleDescribeTopicPartitionsRequest(Socket clientSocket, int messageSize, short apiKey, InputStream inputStream) {
         try (clientSocket) {
             clientSocket.setSoTimeout(SOCKET_TIMEOUT_MS);
-
-            InputStream inputStream = clientSocket.getInputStream();
             OutputStream outputStream = clientSocket.getOutputStream();
             String clientAddress = formatClientAddress(clientSocket);
 
@@ -239,10 +233,10 @@ public class KafkaServer {
                     requestCount++;
                     LOGGER.info("Processing DescribeTopicPartitions request " + requestCount + " from client: " + clientAddress);
 
-                    DescribeTopicRequest request = parseDescribeTopicPartitionsRequest(inputStream, messageSize, apiKey);
-                    DescribeTopicDTO response = createDescribeTopicPartitionsResponse(request);
+                    //Dealing with the request parsing....
+                    var request = parseDescribeTopicPartitionsRequest(inputStream, messageSize, apiKey);
+                    var response = createDescribeTopicPartitionsResponse(request);
                     sendResponse(outputStream, response);
-
                     LOGGER.info("DescribeTopicPartitions request " + requestCount + " completed for correlation ID: " + request.correlationId());
 
                 } catch (Exception e) {
@@ -289,184 +283,47 @@ public class KafkaServer {
      * @throws IOException if parsing fails
      */
     private DescribeTopicRequest parseDescribeTopicPartitionsRequest(InputStream inputStream, int messageSize, short apiKey) throws IOException {
-        LOGGER.info("=== Starting DescribeTopicPartitions Parsing ===");
-        LOGGER.info("Message size: " + messageSize + ", API key: " + apiKey);
-        int remainingBytes = messageSize - 2;
-        LOGGER.info("Remaining bytes to read: " + remainingBytes);
-
         try {
-            // Parse request header
-            LOGGER.info("Reading API version...");
-            short apiVersion = readApiVersion(inputStream);
-            remainingBytes -= 2;
-            LOGGER.info("API version: " + apiVersion + ", remaining: " + remainingBytes);
+            short apiVersion = readInt16(inputStream);
+            int correlationId = readInt32(inputStream);
 
-            LOGGER.info("Reading correlation ID...");
-            int correlationId = readCorrelationId(inputStream);
-            remainingBytes -= 4;
-            LOGGER.info("Correlation ID: " + correlationId + ", remaining: " + remainingBytes);
+            // Client ID
+            short clientIdLength = readInt16(inputStream);
+            byte[] clientIdBytes = new byte[clientIdLength];
+            inputStream.read(clientIdBytes);
 
-            // Parse client information
-            LOGGER.info("Reading client ID length...");
-            short clientIdLength = readClientIdLenght(inputStream);
-            remainingBytes -= 2;
-            LOGGER.info("Client ID length: " + clientIdLength + ", remaining: " + remainingBytes);
-
-            LOGGER.info("Reading client ID contents...");
-            byte[] clientIdContents = readExactly(inputStream, clientIdLength);
-            remainingBytes -= clientIdLength;
-            String clientId = new String(clientIdContents, StandardCharsets.UTF_8);
-            LOGGER.info("Client ID: '" + clientId + "', remaining: " + remainingBytes);
-
-            // Skip tag buffer (1 byte)
-            LOGGER.info("Skipping client tag buffer...");
+            // Skip tag buffer
             inputStream.read();
-            remainingBytes -= 1;
-            LOGGER.info("Skipped client tag buffer, remaining: " + remainingBytes);
 
-            // Read topics array length (1 byte para este caso específico)
-            LOGGER.info("Reading topics array length...");
-            int topicsArrayByte = inputStream.read();
-            remainingBytes -= 1;
-            if (topicsArrayByte == -1) {
-                throw new IOException("EOF reading topics array length");
-            }
-            LOGGER.info("Topics array byte: 0x" + Integer.toHexString(topicsArrayByte) + " (" + topicsArrayByte + "), remaining: " + remainingBytes);
-
-            int topicsCount = topicsArrayByte - 1; // compact array format
+            // Topics
+            int topicsLength = inputStream.read(); // compact array length
             List<TopicInfo> topics = new ArrayList<>();
-            LOGGER.info("Will read " + topicsCount + " topics");
 
-            for (int i = 0; i < topicsCount; i++) {
-                LOGGER.info("Reading topic " + (i + 1) + "...");
+            for (int i = 0; i < topicsLength - 1; i++) { // -1 for compact format
+                int topicNameLength = inputStream.read(); // compact string length
+                byte[] topicNameBytes = new byte[topicNameLength - 1]; // -1 for compact format
+                inputStream.read(topicNameBytes);
+                inputStream.read(); // skip topic tag buffer
 
-                // Read topic name length (1 byte para este caso)
-                int topicNameLengthByte = inputStream.read();
-                remainingBytes -= 1;
-                if (topicNameLengthByte == -1) {
-                    throw new IOException("EOF reading topic name length");
-                }
-                LOGGER.info("Topic name length byte: 0x" + Integer.toHexString(topicNameLengthByte) + " (" + topicNameLengthByte + "), remaining: " + remainingBytes);
+                topics.add(new TopicInfo((byte) topicNameBytes.length, topicNameBytes));
+            }
 
-                int actualTopicNameLength = topicNameLengthByte - 1; // compact string format
-                LOGGER.info("Actual topic name length: " + actualTopicNameLength);
+            // Partition limit
+            int partitionLimit = readInt32(inputStream);
 
-                // Read topic name
-                byte[] topicNameBytes = readExactly(inputStream, actualTopicNameLength);
-                remainingBytes -= actualTopicNameLength;
-                String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
-                LOGGER.info("Topic name: '" + topicName + "', remaining: " + remainingBytes);
-
-                // Skip topic tag buffer (1 byte)
+            // Skip remaining bytes (cursor + final tag)
+            while (inputStream.available() > 0) {
                 inputStream.read();
-                remainingBytes -= 1;
-                LOGGER.info("Skipped topic tag buffer, remaining: " + remainingBytes);
-
-                TopicInfo topic = new TopicInfo((byte) topicNameBytes.length, topicNameBytes);
-                topics.add(topic);
             }
-
-            // Read partition limit (4 bytes)
-            LOGGER.info("Reading partition limit...");
-            int responsePartitionLimit = readDescribeTopicPartitionLimit(inputStream);
-            remainingBytes -= 4;
-            LOGGER.info("Partition limit: " + responsePartitionLimit + ", remaining: " + remainingBytes);
-
-            // Handle remaining bytes (cursor + final tag buffer)
-            LOGGER.info("Handling cursor field with " + remainingBytes + " bytes remaining");
-
-            // Para este teste específico, baseado no hex dump, sabemos que:
-            // ff 00 são os bytes do cursor problemático
-            if (remainingBytes >= 2) {
-                LOGGER.info("Reading cursor bytes...");
-                int cursorByte1 = inputStream.read();
-                int cursorByte2 = inputStream.read();
-                remainingBytes -= 2;
-
-                LOGGER.info("Cursor bytes: 0x" + Integer.toHexString(cursorByte1) + " 0x" + Integer.toHexString(cursorByte2));
-                LOGGER.info("Remaining after cursor: " + remainingBytes);
-
-                // Se os bytes são ff 00, significa um cursor malformado que devemos ignorar
-                if (cursorByte1 == 0xff && cursorByte2 == 0x00) {
-                    LOGGER.warning("Detected problematic cursor bytes ff 00, ignoring");
-                }
-            }
-
-            // Skip any remaining bytes
-            while (remainingBytes > 0) {
-                int availableBytes = inputStream.available();
-                LOGGER.info("Available bytes: " + availableBytes + ", remaining to skip: " + remainingBytes);
-
-                if (availableBytes > 0) {
-                    int skippedByte = inputStream.read();
-                    remainingBytes--;
-                    LOGGER.info("Skipped byte: 0x" + Integer.toHexString(skippedByte) + ", remaining: " + remainingBytes);
-                } else {
-                    LOGGER.info("No more bytes available, breaking");
-                    break;
-                }
-            }
-
-            LOGGER.info("=== Successfully parsed DescribeTopicPartitions request ===");
-            LOGGER.info("Topics count: " + topics.size());
 
             return new DescribeTopicRequest(messageSize, apiKey, apiVersion, correlationId,
-                    clientIdLength, clientIdContents, topics.size(), topics, responsePartitionLimit);
+                    clientIdLength, clientIdBytes, topics.size(), topics, partitionLimit);
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error in parsing: " + e.getMessage(), e);
-            throw new IOException("Failed to parse DescribeTopicPartitions request: " + e.getMessage(), e);
+            throw new IOException("Parse failed: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Parses the topics array from the request stream.
-     *
-     * @param inputStream the input stream to read from
-     * @return list of TopicInfo objects
-     * @throws IOException if parsing fails
-     */
-    private List<TopicInfo> parseTopicsArray(InputStream inputStream) throws IOException {
-        int arrayLength = readVarint(inputStream);
-        LOGGER.fine("Topics array length: " + arrayLength);
-
-        if (arrayLength == 0) {
-            throw new IOException("Invalid topics array length: 0");
-        }
-
-        int actualArrayLength = arrayLength - 1; // Compact array format subtracts 1
-        List<TopicInfo> topics = new ArrayList<>(actualArrayLength);
-
-        for (int i = 0; i < actualArrayLength; i++) {
-            TopicInfo topic = parseSingleTopic(inputStream, i);
-            topics.add(topic);
-        }
-
-        return topics;
-    }
-
-    /**
-     * Parses a single topic from the topics array.
-     *
-     * @param inputStream the input stream to read from
-     * @param topicIndex  the index of this topic (for error reporting)
-     * @return TopicInfo object containing topic data
-     * @throws IOException if parsing fails or topic name is invalid
-     */
-    private TopicInfo parseSingleTopic(InputStream inputStream, int topicIndex) throws IOException {
-        String topicName = readCompactString(inputStream);
-        LOGGER.fine("Topic " + topicIndex + " name: '" + topicName + "'");
-
-        // Skip topic tag buffer
-        skipBytes(inputStream, TAG_BUFFER_SIZE);
-
-        if (topicName == null || topicName.isEmpty()) {
-            throw new IOException("Invalid topic name at index " + topicIndex);
-        }
-
-        byte[] topicNameBytes = topicName.getBytes(StandardCharsets.UTF_8);
-        return new TopicInfo((byte) topicNameBytes.length, topicNameBytes);
-    }
 
     /**
      * Creates a response for ApiVersions requests.
@@ -481,46 +338,6 @@ public class KafkaServer {
     }
 
     /**
-     * Creates a response for DescribeTopicPartitions requests.
-     *
-     * <p>Currently returns UNKNOWN_TOPIC_OR_PARTITION error for all topics
-     * as topic management is not yet implemented.</p>
-     *
-     * @param request the original request
-     * @return DescribeTopicDTO containing topic information
-     */
-    /**
-     * Creates a response for DescribeTopicPartitions requests with detailed logging.
-     */
-    private DescribeTopicDTO createDescribeTopicPartitionsResponse(DescribeTopicRequest request) {
-        LOGGER.info("=== Creating DescribeTopicPartitions Response ===");
-        LOGGER.info("Request correlation ID: " + request.correlationId());
-        LOGGER.info("Number of topics in request: " + request.topics().size());
-
-        // UUID padrão para tópicos desconhecidos
-        final byte[] TOPIC_ID = new byte[16]; // UUID vazio (todos zeros)
-
-        DescribeTopicDTO response = new DescribeTopicDTO(request.correlationId());
-
-        for (int i = 0; i < request.topics().size(); i++) {
-            TopicInfo topic = request.topics().get(i);
-            String topicName = new String(topic.topicName());
-            LOGGER.info("Processing topic " + (i + 1) + ": '" + topicName + "'");
-            TopicResponseDTO topicResponse = new TopicResponseDTO(
-                    TOPIC_ID,
-                    UNKNOWN_TOPIC_OR_PARTITION.getCode(),
-                    topic.topicNameLength(),
-                    topic.topicName(),
-                    (byte) 0
-            );
-            response.addTopicResponse(topicResponse);
-            LOGGER.info("Added topic response for: " + topicName + " with error code: " + UNKNOWN_TOPIC_OR_PARTITION.getCode());
-        }
-        LOGGER.info("Created response with " + request.topics().size() + " topics");
-        return response;
-    }
-
-    /**
      * Sends a response to the client over the output stream.
      *
      * @param outputStream the output stream to write to
@@ -529,34 +346,10 @@ public class KafkaServer {
      */
     private void sendResponse(OutputStream outputStream, IBufferByteDTO response) throws IOException {
         byte[] responseBytes = response.toByteBuffer().array();
-
         outputStream.write(responseBytes);
         outputStream.flush();
-
         LOGGER.fine("Sent response: " + responseBytes.length + " bytes");
-
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            logResponseHex(responseBytes);
-        }
     }
-
-    /**
-     * Logs the hexadecimal representation of response bytes for debugging.
-     *
-     * @param responseBytes the response byte array to log
-     */
-    private void logResponseHex(byte[] responseBytes) {
-        StringBuilder hexLog = new StringBuilder("Response bytes (first 16): ");
-        int bytesToLog = Math.min(16, responseBytes.length);
-
-        for (int i = 0; i < bytesToLog; i++) {
-            hexLog.append(String.format("%02x ", responseBytes[i]));
-        }
-
-        LOGGER.finest(hexLog.toString());
-    }
-
-    // ===== UTILITY METHODS =====
 
     /**
      * Validates if the given API version is supported by this server.
@@ -569,60 +362,6 @@ public class KafkaServer {
         return isValid ? (short) 0 : UNSUPPORTED_VERSION.getCode();
     }
 
-    /**
-     * Checks if an API version is within the supported range.
-     *
-     * @param apiVersion the API version to check
-     * @return true if the version is supported, false otherwise
-     */
-    private boolean isValidApiVersion(short apiVersion) {
-        return apiVersion >= MIN_API_VERSION && apiVersion <= MAX_API_VERSION;
-    }
-
-    /**
-     * Safely reads exactly the specified number of bytes from the input stream.
-     *
-     * <p>This method ensures that all requested bytes are read, handling cases
-     * where the underlying stream returns fewer bytes than requested.</p>
-     *
-     * @param inputStream the input stream to read from
-     * @param length      the exact number of bytes to read
-     * @return byte array containing the read data
-     * @throws IOException              if EOF is encountered before all bytes are read
-     * @throws IllegalArgumentException if length is negative
-     */
-    private byte[] readExactly(InputStream inputStream, int length) throws IOException {
-        if (length < 0) {
-            throw new IllegalArgumentException("Length cannot be negative: " + length);
-        }
-
-        byte[] buffer = new byte[length];
-        int totalRead = 0;
-
-        while (totalRead < length) {
-            int bytesRead = inputStream.read(buffer, totalRead, length - totalRead);
-            if (bytesRead == -1) {
-                throw new IOException("EOF while reading " + length + " bytes (got " + totalRead + ")");
-            }
-            totalRead += bytesRead;
-        }
-
-        return buffer;
-    }
-
-    /**
-     * Safely skips the specified number of bytes from the input stream.
-     *
-     * @param inputStream the input stream to skip from
-     * @param bytesToSkip the number of bytes to skip
-     * @throws IOException if skipping fails or EOF is encountered
-     */
-    private void skipBytes(InputStream inputStream, int bytesToSkip) throws IOException {
-        long skippedBytes = inputStream.skip(bytesToSkip);
-        if (skippedBytes != bytesToSkip) {
-            throw new IOException("Could not skip " + bytesToSkip + " bytes, only skipped " + skippedBytes);
-        }
-    }
 
     /**
      * Formats a client socket address for logging purposes.
@@ -674,78 +413,4 @@ public class KafkaServer {
         }
     }
 
-    // ===== LEGACY METHODS (kept for compatibility) =====
-
-    /**
-     * Legacy method for handling client connections.
-     *
-     * @deprecated This method name is inconsistent. Use {@link #handleApiVersionsRequest(Socket, int, short)} instead.
-     */
-    @Deprecated
-    private void handleClientConnection(Socket clientSocket, int messageSize, short apiKey) {
-        handleApiVersionsRequest(clientSocket, messageSize, apiKey);
-    }
-
-    /**
-     * Legacy method for handling describe topic partition requests.
-     *
-     * @deprecated This method name is inconsistent. Use {@link #handleDescribeTopicPartitionsRequest(Socket, int, short)} instead.
-     */
-    @Deprecated
-    private void handleDescribeTopicPartition(Socket clientSocket, int messageSize, short apiKey) {
-        handleDescribeTopicPartitionsRequest(clientSocket, messageSize, apiKey);
-    }
-
-    /**
-     * Legacy method for reading describe topic partition requests.
-     *
-     * @deprecated Use {@link #parseDescribeTopicPartitionsRequest(InputStream, int, short)} instead.
-     */
-    @Deprecated
-    private DescribeTopicRequest readDescribeTopicPartitionRequest(InputStream inputStream, int messageSize, short apiKey) throws IOException {
-        return parseDescribeTopicPartitionsRequest(inputStream, messageSize, apiKey);
-    }
-
-    /**
-     * Legacy method for reading API version requests.
-     *
-     * @deprecated Use {@link #parseApiVersionsRequest(InputStream, int, short)} instead.
-     */
-    @Deprecated
-    private KafkaRequest readApiVersionRequest(InputStream inputStream, int messageSize, short apiKey) throws IOException {
-        return parseApiVersionsRequest(inputStream, messageSize, apiKey);
-    }
-
-    /**
-     * Legacy method for creating API version responses.
-     *
-     * @deprecated Use {@link #createApiVersionsResponse(KafkaRequest)} instead.
-     */
-    @Deprecated
-    private ApiVersionResponseDTO createApiVersionResponse(KafkaRequest request) {
-        return createApiVersionsResponse(request);
-    }
-
-    /**
-     * Legacy method for creating describe topic partition responses.
-     *
-     * @deprecated Use {@link #createDescribeTopicPartitionsResponse(DescribeTopicRequest)} instead.
-     */
-    @Deprecated
-    private DescribeTopicDTO createDescribeTopicPartitionResponse(DescribeTopicRequest request) {
-        return createDescribeTopicPartitionsResponse(request);
-    }
-
-    /**
-     * Unused legacy method for reading API key from request.
-     * This method is not used in the current implementation.
-     *
-     * @deprecated This method is not used and may be removed in future versions.
-     */
-    @Deprecated
-    @SuppressWarnings("unused")
-    private API_KEYS readApiKeyFromRequest(InputStream inputStream) throws IOException {
-        LOGGER.warning("readApiKeyFromRequest is deprecated and should not be used");
-        throw new UnsupportedOperationException("This method is deprecated and not supported");
-    }
 }
