@@ -7,7 +7,6 @@ import java.util.logging.Logger;
 
 import static enums.ERROR.UNKNOWN_TOPIC_OR_PARTITION;
 
-// BACKUP VERSION - Use if empty cursor structure doesn't work
 public class DescribeTopicDTO implements IBufferByteDTO {
 
     private static final Logger LOGGER = Logger.getLogger(DescribeTopicDTO.class.getName());
@@ -52,9 +51,12 @@ public class DescribeTopicDTO implements IBufferByteDTO {
 
     @Override
     public ByteBuffer toByteBuffer() {
-        LOGGER.info("BACKUP: Creating response with CORRECT compact nullable bytes cursor");
+        LOGGER.info("Creating response WITH response header tag buffer");
 
-        int bodySize = 4 + 4 + 1; // correlation + throttle + topics_length
+        // ESTRUTURA CORRETA:
+        // message_size + correlation_id + RESPONSE_HEADER_TAG + throttle_time + topics + next_cursor
+
+        int bodySize = 4 + 1 + 4 + 1; // correlation + HEADER_TAG + throttle + topics_length
 
         for (TopicResponseDTO topic : topicList) {
             bodySize += 2; // error_code
@@ -66,13 +68,13 @@ public class DescribeTopicDTO implements IBufferByteDTO {
             bodySize += 1; // topic tag buffer
         }
 
-        // Next cursor: compact nullable bytes (null = varint 0)
-        bodySize += 1; // just the null indicator
-        // NO final tag buffer this time
+        // Next cursor (compact nullable bytes - null = 1 byte)
+        bodySize += 1; // next_cursor null
+        bodySize += 1; // final tag buffer
 
         int totalSize = 4 + bodySize;
 
-        LOGGER.info("BACKUP test - compact nullable format: " + totalSize + " bytes");
+        LOGGER.info("With header tag buffer: " + totalSize + " bytes");
 
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
 
@@ -82,7 +84,10 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         // Correlation ID
         buffer.putInt(correlationId);
 
-        // Throttle time ms
+        // RESPONSE HEADER TAG BUFFER (importante!)
+        buffer.put((byte) 0);
+
+        // Throttle time ms (agora na posição correta)
         buffer.putInt(0);
 
         // Topics array
@@ -113,13 +118,11 @@ public class DescribeTopicDTO implements IBufferByteDTO {
             buffer.put((byte) 0);
         }
 
-        // Next cursor: CORRECT compact nullable bytes format
-        // For compact nullable bytes, null is represented as varint 0
-        buffer.put((byte) 0); // This is the correct way for compact nullable
-
-        // NO final tag buffer - maybe that's what's causing the issue
+        // Next cursor (null)
         buffer.put((byte) 0);
 
+        // Final tag buffer
+        buffer.put((byte) 0);
 
         buffer.flip();
 
@@ -127,13 +130,15 @@ public class DescribeTopicDTO implements IBufferByteDTO {
         buffer.get(bytes);
         buffer.rewind();
 
-        StringBuilder hex = new StringBuilder("BACKUP - Compact nullable cursor:\n");
+        StringBuilder hex = new StringBuilder("WITH HEADER TAG - Should fix throttle time:\n");
         for (int i = 0; i < bytes.length; i++) {
             if (i % 16 == 0) hex.append(String.format("%04x | ", i));
             hex.append(String.format("%02x ", bytes[i] & 0xFF));
             if ((i + 1) % 16 == 0) hex.append("\n");
         }
         LOGGER.info(hex.toString());
+
+        LOGGER.info("✅ Fixed structure: message + correlation + HEADER_TAG + throttle + topics");
 
         return buffer;
     }
